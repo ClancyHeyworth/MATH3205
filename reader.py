@@ -124,8 +124,3 @@ def read_pos_file(filename:str) -> Info:
         Buses = Buses,
         Arcs = Branches + Switches
     )
-        
-# filename = 'Project/power_systems_radial/bus_13_3.pos'
-# filename = 'Project/power_systems_radial/bus_135_8.pos'
-# filename = 'Project/power_systems_radial/bus_10476_84.pos'
-# print(read_pos_file(filename))

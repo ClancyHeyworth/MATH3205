@@ -68,8 +68,7 @@ def plot_graph(graph:Graph) -> None:
     plt.legend([i, j, k], ['Bus', 'Branch', 'Switch'])
     plt.show()
         
-filename = 'Project/power_systems_radial/bus_29_1.pos'
-#filename = 'Project/power_systems_radial/bus_10476_84.pos'
+filename = 'power_systems_radial/bus_29_1.pos'
 F = read_pos_file(filename)
 g = Graph(F)
 plot_graph(g)
