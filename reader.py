@@ -1,126 +1,104 @@
 from dataclasses import dataclass
 
 @dataclass(frozen=True)
-class Branch:
-    num : int
-    Src_bus : int
-    Rec_bus : int
-    R : float
-    X : float
-    PL_kw : float
-    QL_kvar : float
-    S_NS : str
+class Node:
+    """
+    Stores information on each vertex on the graph.\\
+    index : index number of node\\
+    theta : duration of failure time\\
+    power : load/power of node\\
+    clients : number of clients, useful for reliability indices
+    """
+    index : int
+    theta : float
+    power : float
+    clients : int
 
 @dataclass(frozen=True)
-class Bus:
-    num : int
-    x_coord : int
-    y_coord : int
+class Edge:
+    """
+    Stores edge connection between two nodes.\\
+    node1 : sending node\\
+    node2 : receiving node
+    """
+    node1 : int
+    node2 : int
     
 @dataclass
 class Info:
-    PU : int
-    V_base : float
-    S_base : int
-    Branch_count : int
-    Sectionalizing_count : int
-    Tie_count : int
-    Nodes : int
-    Feeders : int
-    Feeder_node_ids : list[int]
-    Branches : list[Branch]
-    Tie_switches : list[Branch]
-    Buses : list[Bus]
-    Arcs : list[Branch]
-
-def read_branch_line(branch_line:str) -> Branch:
-    try:
-        num, Src_bus, Rec_bus, R, X, PL_kw, QL_kvar, S_NS =\
-            branch_line.strip().split()
-    except:
-        print(branch_line.strip().split())
-        quit()
-    
-    return Branch(
-        int(num),
-        int(Src_bus),
-        int(Rec_bus),
-        float(R),
-        float(X),
-        float(PL_kw),
-        float(QL_kvar),
-        S_NS
-    )
-
-def read_switch_line(switch_line:str) -> Branch:
-    num, Src_bus, Rec_bus, R, X = switch_line.strip().split()
-    
-    return Branch(
-        int(num),
-        int(Src_bus),
-        int(Rec_bus),
-        float(R),
-        float(X),
-        None,
-        None,
-        None
-    )
-    
-def read_bus_line(node_line:str) -> Bus:
-    num, x_coord, y_coord = node_line.strip().split()
-    
-    return Bus(
-        int(num),
-        int(x_coord),
-        int(y_coord)
-    )
+    """
+    Stores information read from dataset file.\\
+    node_num : number of nodes in problem\\
+    edge_num : number of edges in problem\\
+    ties_num : number of ties, can be ignored\\
+    nodes : list of Node objects\\
+    edges : list of Edge objects\\
+    ties : list of Edge objects for ties, can be ignored\\
+    all_edges : combined list of edge and ties
+    """
+    node_num : int
+    edge_num : int
+    ties_num : int
+    nodes : list[Node]
+    edges : list[Edge]
+    ties : list[Edge]
+    all_edges : list[Edge]
     
 def read_pos_file(filename:str) -> Info:
+    """
+    Reads from .switch file into Info object.
+    """
     with open(filename, 'r') as file:
         lines = file.readlines()
-        
-    # header
-    Pu = int(lines[0].split()[1])
-    V_base = float(lines[1].split()[1])
-    S_base = float(lines[2].split()[1])
-    Branch_count = int(lines[3].split()[1])
-    Sectionalizing_count = int(lines[4].split()[1])
-    Tie_count = int(lines[5].split()[1])
-    Nodes = int(lines[6].split()[1])
-    Feeders = int(lines[7].split()[1])
-    Feeder_node_ids = [int(i) for i in lines[8].split()[1:]]
     
-    k = 10
-    Branches = []
-    while not lines[k].startswith('.'):
-        Branches.append(read_branch_line(lines[k]))
-        k += 1
-        
-    k += 1
-    Switches = []
-    while not lines[k].startswith('.'):
-        Switches.append(read_switch_line(lines[k]))
-        k += 1
-        
-    k += 2
-    Buses = []
-    while not lines[k].startswith('.'):
-        Buses.append(read_bus_line(lines[k]))
-        k += 1
-        if k >= len(lines):
-            break
+    nodes:list[Node] = []
+    edges:list[Edge] = []
+    ties:list[Edge] = []
+    
+    for line in lines:
+        # line is first line
+        if line.startswith('p'):
+            _, _, node_num, edge_num, ties_num = line.split()
+            node_num, edge_num, ties_num =\
+                (int(x) for x in [node_num, edge_num, ties_num])
+        # line is vertice line
+        elif line.startswith('v'):
+            _, index, _, theta, power, clients = line.split()
+            nodes.append(
+                Node(
+                    index = int(index),
+                    theta = float(theta),
+                    power = float(power),
+                    clients = int(clients)
+                )
+            )
+        # line is edge line
+        elif line.startswith('e'):
+            _, node1, node2, _ = line.split()
+            edges.append(
+                Edge(
+                    node1 = int(node1),
+                    node2 = int(node2)
+                )
+            )
+        # line is tie line
+        elif line.startswith('t'):
+            _, node1, node2, _ = line.split()
+            ties.append(
+                Edge(
+                    node1 = int(node1),
+                    node2 = int(node2)
+                )
+            )
+    assert len(edges) == edge_num
+    assert len(nodes) == node_num
+    assert len(ties) == ties_num
     return Info(
-        PU = Pu,
-        V_base = V_base,
-        S_base = S_base,
-        Branch_count = Branch_count,
-        Sectionalizing_count = Sectionalizing_count,
-        Tie_count = Tie_count,
-        Nodes = Nodes,
-        Feeders = Feeders,
-        Feeder_node_ids = Feeder_node_ids,
-        Branches = Branches,
-        Tie_switches = Switches,
-        Buses = Buses,
-        Arcs = Branches + Switches
+        node_num = node_num,
+        edge_num = edge_num,
+        ties_num = ties_num,
+        nodes = nodes,
+        edges = edges,
+        ties = ties,
+        all_edges = ties + edges
     )

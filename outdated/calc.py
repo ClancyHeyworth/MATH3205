@@ -1,4 +1,4 @@
-from reader import *
+from outdated.reader import *
 
 # R3 ?
 # filename = 'power_systems_radial/bus_32_1.pos'
