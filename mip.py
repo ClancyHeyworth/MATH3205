@@ -75,6 +75,9 @@ m.optimize()
 
 model_output = [x for x in X if round(X[x].x) == 1]
 
+Elb = sum(L_D[i] * Theta[i] for i in N)
 print(model_output)
 print(m.ObjVal)
+print(Elb)
+print(m.ObjVal + Elb)
 #plot_output(G, model_output)

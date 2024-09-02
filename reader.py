@@ -54,7 +54,6 @@ def read_pos_file(filename:str) -> Info:
     nodes:list[Node] = []
     edges:list[Edge] = []
     ties:list[Edge] = []
-    
     for line in lines:
         # line is first line
         if line.startswith('p'):
@@ -64,6 +63,7 @@ def read_pos_file(filename:str) -> Info:
         # line is vertice line
         elif line.startswith('v'):
             _, index, _, theta, power, clients = line.split()
+            
             nodes.append(
                 Node(
                     index = int(index),

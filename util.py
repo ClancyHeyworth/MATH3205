@@ -5,40 +5,78 @@ import networkx as nx
 import itertools
 
 class Graph:
-    def __init__(self, info : Info) -> None:
+    """
+    Object for retrieving processed data from dataset
+    """
+    def __init__(self, info : Info, verbal:bool=False) -> None:
+        """
+        info : Info object generated from a dataset \n
+        verbal : prints whether origin node was added successfully
+        """
         self.info = info
         
         # Maps node num to bus object
         self.index_node:dict[int, Node] = {x.index : x for x in self.info.nodes}
+
         vertices = [node.index for node in info.nodes]
         edges = [(edge.node1, edge.node2) for edge in info.edges + info.ties]
 
+        # Add an origin node and edges to each substation for convenience
+        node0 = Node(0, 0, 0, 0)
+        for index in vertices:
+            if self.index_node[index].clients == -1:
+                edges.append((0, index))
+        self.index_node[0] = node0
+        vertices.append(node0.index)
+        self.vertices = vertices
+
+        # make graph with networkx
         self.G = nx.DiGraph()
         self.G.add_nodes_from(vertices)
         self.G.add_edges_from(edges)
 
+        # successors are nodes that can be reached from the given node
         self.successors_dict = {index : nx.descendants(self.G, index) for index in vertices}
-        if (self.successors_dict[1] | {1} != set(vertices)):
-            print('Graph is not fully connected from origin.')
-        else:
-            print('Graph is fully connected from origin.')
 
-        for index in self.successors_dict:
-            if (self.successors_dict[index] | {index} == set(vertices)):
-                print('Does exist some point acting as origin.')
-        
-        # t = [(index, len(self.successors_dict[index])) for index in self.successors_dict.keys()]
-        # t = sorted(t, key = lambda x : x[1], reverse=True)
-        # print(t[0])
+        # maps index -> theta value
+        self.theta = {x.index : x.theta for x in info.nodes}
+        self.theta[0] = 0
 
-        # for node in self.successors_dict.keys():
-        #     if node not in self.successors_dict[t[0][0]]:
-        #         print(node)
+        if verbal:
+            if (self.successors_dict[0] | {0} != set(vertices)):
+                print('Graph is not fully connected from origin.')
+            else:
+                print('Graph is fully connected from origin.')
 
     def get_downstream_load(self, index : int) -> float:
-        return sum([self.index_node[child].power for child in self.successors_dict[index]])
+        """
+        Calculates load of descendant nodes from node\n
+        index : origin to calculate from
+        """
+        total = 0
+        for i in self.successors_dict[index]:
+            downstream_node = self.index_node[i]
+            if downstream_node.clients == -1:
+                continue
+            total += downstream_node.power
+        return total
+    
+    def get_eps_lower_bound(self) -> float:
+        """
+        Calculates EPS lower bound
+        """
+        return sum(self.get_downstream_load(i) * self.theta[i] for i in self.G.nodes)
+    
+    def get_eps_upper_bound(self) -> float:
+        """
+        Calculates EPS upper bound
+        """
+        return self.get_downstream_load(0) * sum(self.theta[i] for i in self.vertices)
 
     def plot_graph(self) -> None:
+        """
+        Plots graph
+        """
         G = self.G
         
         #pos = nx.spring_layout(G, seed=0, k=0.1)
@@ -52,7 +90,6 @@ class Graph:
             for node in component:
                 color_map[node] = color
         node_colors = [color_map[node] for node in G.nodes()]
-        # print(nx.is_weakly_connected(G))
 
         plt.figure(figsize=(8, 6))
         nx.draw(G, pos, with_labels=True, 
@@ -60,13 +97,10 @@ class Graph:
                 font_size=5, font_color="black", 
                 edge_color="gray", linewidths=1.5)
         plt.show()
-        
-if __name__ == "__main__":
-    filename = 'networks/R4.switch'
-    F = read_pos_file(filename)
-    g = Graph(F)
 
-    # correct for R3, R6
-    # incorrect for R4, R5, R7
-    print(g.get_downstream_load(1))
-    g.plot_graph()
+if __name__ == "__main__":
+    filename = 'networks/R3.switch'
+    F = read_pos_file(filename)
+    G = Graph(F)
+
+    print(G.get_downstream_load(0), G.get_eps_lower_bound(), G.get_eps_upper_bound())
