@@ -53,13 +53,9 @@ class Graph:
         Calculates load of descendant nodes from node\n
         index : origin to calculate from
         """
-        total = 0
-        for i in self.successors_dict[index]:
-            downstream_node = self.index_node[i]
-            if downstream_node.clients == -1:
-                continue
-            total += downstream_node.power
-        return total
+        return self.index_node[index].power +\
+            sum(self.index_node[i].power for i in self.successors_dict[index]
+                if self.index_node[i].clients != -1)
     
     def get_eps_lower_bound(self) -> float:
         """
@@ -71,7 +67,14 @@ class Graph:
         """
         Calculates EPS upper bound
         """
-        return self.get_downstream_load(0) * sum(self.theta[i] for i in self.vertices)
+        return self.get_downstream_load(0) *\
+            sum(self.theta.values())
+    
+    def get_eps_upper_bound2(self) -> float:
+        """
+        Calculates EPS upper bound
+        """
+        return self.get_downstream_load(0) * sum(self.theta[i] for i in self.theta if self.index_node[i].clients >= 0)
 
     def plot_graph(self) -> None:
         """
@@ -79,7 +82,7 @@ class Graph:
         """
         G = self.G
         
-        #pos = nx.spring_layout(G, seed=0, k=0.1)
+        # pos = nx.spring_layout(G, seed=0, k=0.1)
         pos = nx.circular_layout(G)
         # pos = nx.kamada_kawai_layout(G)
 
@@ -99,8 +102,13 @@ class Graph:
         plt.show()
 
 if __name__ == "__main__":
+    #filename = 'networks/PaperExample.switch'
     filename = 'networks/R3.switch'
     F = read_pos_file(filename)
     G = Graph(F)
 
+    # G.plot_graph()
+
     print(G.get_downstream_load(0), G.get_eps_lower_bound(), G.get_eps_upper_bound())
+
+    print(sum(G.theta.values()))

@@ -19,7 +19,8 @@ for a in A:
     if k not in N:
         print(k)
 # AS = G.get_possible_switch_placements()
-MAX_SWITCHES = G.info.ties_num
+MAX_SWITCHES = int(0.2 * len(N))
+print(MAX_SWITCHES)
 
 X = {
     (i, j) : m.addVar(vtype=gp.GRB.BINARY)
@@ -75,9 +76,10 @@ m.optimize()
 
 model_output = [x for x in X if round(X[x].x) == 1]
 
-Elb = sum(L_D[i] * Theta[i] for i in N)
+Elb = G.get_eps_lower_bound()
+Eub = G.get_eps_upper_bound()
 print(model_output)
 print(m.ObjVal)
-print(Elb)
-print(m.ObjVal + Elb)
+print(Elb, m.ObjVal + Elb, Eub)
+#print(m.ObjVal + Elb)
 #plot_output(G, model_output)
