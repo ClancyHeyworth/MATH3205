@@ -1,5 +1,6 @@
 import gurobipy as gp
 from util import *
+from math import floor
 
 filename = 'networks/R3.switch'
 F = read_pos_file(filename)
@@ -7,63 +8,58 @@ G = Graph(F)
 
 m = gp.Model()
 
-m.setParam('OutputFlag', 0)
+# Sets
+V = range(len(G.G.nodes))
+A = [(a.node1, a.node2) for a in G.info.edges if a.node1]
 
-N = range(1, G.info.node_num+1)
-A = [(a.node1, a.node2) for a in G.info.all_edges]
+# Data
+L_D = {i : G.get_downstream_load(i) for i in V} # Downstream load of node i
+N = floor(0.2 * len(A)) # Maximum number of switches that can be placed
+Outgoing = { # stores nodes that go out of j for incoming (i, j)
+    (i, j) : [k for k in V if (j, k) in A]
+    for (i, j) in A
+}
+Theta = {v : G.index_node[v].theta for v in V}
+M = 2**32 # Very large value
 
-for a in A:
-    j, k = a
-    if j not in N:
-        print(j)
-    if k not in N:
-        print(k)
-# AS = G.get_possible_switch_placements()
-MAX_SWITCHES = int(0.2 * len(N))
-print(MAX_SWITCHES)
-
-X = {
+# Variables
+X = { # Assignment of switch on arc (i, j)
     (i, j) : m.addVar(vtype=gp.GRB.BINARY)
     for i, j in A
 }
 
-F = {
+F = { # Interruption flow on arc (i, j)
     (i, j) : m.addVar()
     for i, j in A
 }
 
-BigF = {
+BigF = { # Interruption slack on arc (i, j)
     j : m.addVar()
-    for j in N
+    for j in V
 }
 
-import numpy as np
-np.random.seed(1)
-L_D = {i : G.get_downstream_load(i) for i in N}
-Theta = {index : G.index_node[index].theta for index in N}
-M = 100000
-
+# Objective - LB not included
 m.setObjective(
     gp.quicksum((L_D[i] + L_D[j]) * F[i, j] for (i, j) in A),
     gp.GRB.MINIMIZE
 )
 
-m.addConstr(gp.quicksum(X[i, j] for (i, j) in A) <= MAX_SWITCHES)
+# Constraints
 
-NodeDict = {
-    (i, j) : [k for k in N if (j, k) in A]
-    for (i, j) in A
-}
+# Number of switches <= Max switches
+m.addConstr(gp.quicksum(X[i, j] for (i, j) in A) <= N)
 
+# Node balance constraint
 NodeBalance = {
     (i, j) :
     m.addConstr(
         BigF[j] + F[i, j] ==\
-        Theta[j] + gp.quicksum(F[j, k] for k in NodeDict[(i, j)])
+        Theta[j] + gp.quicksum(F[j, k] for k in Outgoing[(i, j)])
     )
     for (i, j) in A
 }
 
+# Slack only non-zero if switch present on arfc
 SlackCoupling = {
     (i, j) :
     m.addConstr(
@@ -78,8 +74,6 @@ model_output = [x for x in X if round(X[x].x) == 1]
 
 Elb = G.get_eps_lower_bound()
 Eub = G.get_eps_upper_bound()
-print(model_output)
-print(m.ObjVal)
-print(Elb, m.ObjVal + Elb, Eub)
-#print(m.ObjVal + Elb)
-#plot_output(G, model_output)
+print('Switches placed:', model_output)
+print('Objective Value:', m.ObjVal)
+print('Bounds:', Elb, m.ObjVal + Elb, Eub)

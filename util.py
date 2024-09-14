@@ -35,6 +35,8 @@ class Graph:
         self.G.add_nodes_from(vertices)
         self.G.add_edges_from(edges)
 
+        self.substations = {i for i in self.index_node.keys() if self.index_node[i].clients == -1}
+
         # successors are nodes that can be reached from the given node
         self.successors_dict = {index : nx.descendants(self.G, index) for index in vertices}
 
@@ -53,28 +55,32 @@ class Graph:
         Calculates load of descendant nodes from node\n
         index : origin to calculate from
         """
-        return self.index_node[index].power +\
-            sum(self.index_node[i].power for i in self.successors_dict[index]
-                if self.index_node[i].clients != -1)
+        nodes = self.successors_dict[index] | {index}
+        return sum(self.index_node[i].power for i in nodes if i not in self.substations)
+        # return self.index_node[index].power +\
+        #     sum(self.index_node[i].power for i in self.successors_dict[index]
+        #         if self.index_node[i].clients != -1)
     
     def get_eps_lower_bound(self) -> float:
         """
         Calculates EPS lower bound
         """
-        return sum(self.get_downstream_load(i) * self.theta[i] for i in self.G.nodes)
+        return sum(self.get_downstream_load(i) * self.theta[i] for i in self.G.nodes if i not in self.substations)
     
     def get_eps_upper_bound(self) -> float:
         """
-        Calculates EPS upper bound
+        Calculates EPS upper bound - not working
         """
-        return self.get_downstream_load(0) *\
-            sum(self.theta.values())
+        return sum(
+            self.get_downstream_load(substation) * sum(self.theta[i] for i in self.successors_dict[substation])
+            for substation in self.substations
+        )
     
     def get_eps_upper_bound2(self) -> float:
         """
-        Calculates EPS upper bound
+        Calculates EPS upper bound - not working
         """
-        return self.get_downstream_load(0) * sum(self.theta[i] for i in self.theta if self.index_node[i].clients >= 0)
+        return self.get_downstream_load(0) * sum(self.theta[i] for i in self.theta)
 
     def plot_graph(self) -> None:
         """
@@ -102,13 +108,8 @@ class Graph:
         plt.show()
 
 if __name__ == "__main__":
-    #filename = 'networks/PaperExample.switch'
-    filename = 'networks/R3.switch'
+    filename = 'networks/R7.switch'
     F = read_pos_file(filename)
     G = Graph(F)
 
-    # G.plot_graph()
-
     print(G.get_downstream_load(0), G.get_eps_lower_bound(), G.get_eps_upper_bound())
-
-    print(sum(G.theta.values()))
