@@ -19,7 +19,8 @@ class Graph:
         self.index_node:dict[int, Node] = {x.index : x for x in self.info.nodes}
 
         vertices = [node.index for node in info.nodes]
-        edges = [(edge.node1, edge.node2) for edge in info.edges + info.ties]
+        edges = [(edge.node1, edge.node2) for edge in info.edges]
+        self.edges = deepcopy(edges)
 
         # Add an origin node and edges to each substation for convenience
         node0 = Node(0, 0, 0, 0)
@@ -38,11 +39,13 @@ class Graph:
         self.substations = {i for i in self.index_node.keys() if self.index_node[i].clients == -1}
 
         # successors are nodes that can be reached from the given node
-        self.successors_dict = {index : nx.descendants(self.G, index) for index in vertices}
+        self.successors_dict:dict[int, set] = {index : nx.descendants(self.G, index) for index in vertices}
 
         # maps index -> theta value
         self.theta = {x.index : x.theta for x in info.nodes}
         self.theta[0] = 0
+
+        self.V = {i : self.successors_dict[i] | {i} for i in self.successors_dict if i != 0}
 
         if verbal:
             if (self.successors_dict[0] | {0} != set(vertices)):
@@ -57,9 +60,6 @@ class Graph:
         """
         nodes = self.successors_dict[index] | {index}
         return sum(self.index_node[i].power for i in nodes if i not in self.substations)
-        # return self.index_node[index].power +\
-        #     sum(self.index_node[i].power for i in self.successors_dict[index]
-        #         if self.index_node[i].clients != -1)
     
     def get_eps_lower_bound(self) -> float:
         """
