@@ -14,7 +14,7 @@ def run_optimisation(file_number : int, P : float,
     """
     Setup
     """
-    
+
     filename = f'networks/R{file_number}.switch'
     F = read_pos_file(filename)
     G = Graph(F)
@@ -132,7 +132,7 @@ KNOWN_OPTIMAL_OUTPUTS = {
 
 if __name__ == "__main__":
 
-    P = 0.2
+    P = 0.6
 
     for i in range(3, 8):
         output = run_optimisation(i, P)
