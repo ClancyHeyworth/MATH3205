@@ -136,7 +136,7 @@ KNOWN_OPTIMAL_OUTPUTS = {
 
 if __name__ == "__main__":
 
-    P = 0.6
+    P = 0.2
 
     for i in range(3, 8):
         output = run_optimisation(i, P)
