@@ -20,7 +20,6 @@ class Graph:
 
         vertices = [node.index for node in info.nodes]
         edges = [(edge.node1, edge.node2) for edge in info.edges]
-        self.edges = deepcopy(edges)
 
         # Add an origin node and edges to each substation for convenience
         node0 = Node(0, 0, 0, 0)
@@ -45,13 +44,14 @@ class Graph:
         self.theta = {x.index : x.theta for x in info.nodes}
         self.theta[0] = 0
 
-        self.V = {i : self.successors_dict[i] | {i} for i in self.successors_dict if i != 0}
-
         if verbal:
             if (self.successors_dict[0] | {0} != set(vertices)):
                 print('Graph is not fully connected from origin.')
             else:
                 print('Graph is fully connected from origin.')
+
+        self.edges = edges
+        self.V = {i for i in self.successors_dict}
 
     def get_downstream_load(self, index : int) -> float:
         """
@@ -69,18 +69,12 @@ class Graph:
     
     def get_eps_upper_bound(self) -> float:
         """
-        Calculates EPS upper bound - not working
+        Calculates EPS upper bound
         """
         return sum(
             self.get_downstream_load(substation) * sum(self.theta[i] for i in self.successors_dict[substation])
             for substation in self.substations
         )
-    
-    def get_eps_upper_bound2(self) -> float:
-        """
-        Calculates EPS upper bound - not working
-        """
-        return self.get_downstream_load(0) * sum(self.theta[i] for i in self.theta)
 
     def plot_graph(self) -> None:
         """
