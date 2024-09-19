@@ -2,7 +2,7 @@ import gurobipy as gp
 from util import *
 from math import floor
 
-filename = 'networks/R4.switch'
+filename = 'networks/R3.switch'
 F = read_pos_file(filename)
 G = Graph(F)
 
@@ -16,13 +16,9 @@ A = G.edges
 
 # Data
 L_D = {i : G.get_downstream_load(i) for i in V} # Downstream load of node i
-Outgoing = { # stores nodes that go out of j for incoming (i, j)
-    (i, j) : [k for k in V if (j, k) in A]
-    for (i, j) in A
-}
 Theta = {v : G.index_node[v].theta for v in V}
-M = 20000 #2**32 # Very large value
-P = 0.2
+M = 2**32 # Very large value
+P = 0.8
 N = floor(P * len(A)) # Maximum number of switches that can be placed
 
 # Variables
@@ -36,14 +32,14 @@ F = { # Interruption flow on arc (i, j)
     for i, j in A
 }
 
-# BigF = { # Interruption slack on arc (i, j)
-#     j : m.addVar()
-#     for j in V
-# }
+BigF = { # Interruption slack on arc (i, j)
+    j : m.addVar()
+    for j in V
+}
 
 # Objective - LB not included
 m.setObjective(
-    gp.quicksum((L_D[i] + L_D[j]) * F[i, j] for (i, j) in A),
+    gp.quicksum((L_D[i] - L_D[j]) * F[i, j] for (i, j) in A),
     gp.GRB.MINIMIZE
 )
 
@@ -52,32 +48,36 @@ m.setObjective(
 # Number of switches <= Max switches
 m.addConstr(gp.quicksum(X[i, j] for (i, j) in A) <= N)
 
-SlackCoupling = {
+# SlackCoupling2 = {
+#     (i, j) :
+#     m.addConstr(
+#         F[i, j] >= Theta[j] + gp.quicksum(F[j, k] for k in Outgoing[(i, j)]) - M*X[i, j]
+#     )
+#     for (i, j) in A
+# }
+
+# Node balance constraint
+Outgoing = { # stores nodes that go out of j for incoming (i, j)
+    j : [k for k in V if (j, k) in A]
+    for j in V
+}
+
+NodeBalance = {
     (i, j) :
     m.addConstr(
-        F[i, j] >= Theta[j] + gp.quicksum(F[j, k] for k in Outgoing[(i, j)]) - M*X[i, j]
+        BigF[j] + F[i, j] == Theta[j] + gp.quicksum(F[j, k] for k in V if k in Outgoing[j])
     )
     for (i, j) in A
 }
 
-# Node balance constraint
-# NodeBalance = {
-#     (i, j) :
-#     m.addConstr(
-#         BigF[j] + F[i, j] ==\
-#         Theta[j] + gp.quicksum(F[j, k] for k in Outgoing[(i, j)])
-#     )
-#     for (i, j) in A
-# }
-
-# # Slack only non-zero if switch present on arc
-# SlackCoupling = {
-#     (i, j) :
-#     m.addConstr(
-#         BigF[j] <= M * X[i, j] 
-#     )
-#     for (i, j) in A
-# }
+# Slack only non-zero if switch present on arc
+SlackCoupling = {
+    (i, j) :
+    m.addConstr(
+        BigF[j] <= M * X[i, j] 
+    )
+    for (i, j) in A
+}
 
 m.setParam('MIPGap', 0)
 m.optimize()
@@ -91,9 +91,9 @@ print('Objective Value:', m.ObjVal)
 print('EPS', m.ObjVal + Elb)
 print('Bounds:', Elb, m.ObjVal + Elb, Eub)
 
-total = 0
-for (i, j) in F:
-    total += (L_D[i] + L_D[j]) * F[i, j].x
-    print(total, F[i, j].x)
-    if round(F[(i, j)].X) > 0:
-        print(i, j)
+# total = 0
+# for (i, j) in F:
+#     total += (L_D[i] + L_D[j]) * F[i, j].x
+#     print(total, F[i, j].x)
+#     if round(F[(i, j)].X) > 0:
+#         print(i, j)
