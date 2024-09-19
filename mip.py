@@ -104,6 +104,10 @@ def run_optimisation(file_number : int, P : float,
         for (i, j) in A
     }
 
+    """
+    Optimize + Output
+    """
+    
     if not verbal:
         m.setParam('OutputFlag', 0)
     m.setParam('MIPGap', 0)
