@@ -61,15 +61,15 @@ class Graph:
         nodes = self.successors_dict[index] | {index}
         return sum(self.index_node[i].power for i in nodes if i not in self.substations)
     
-    def get_eps_lower_bound(self) -> float:
+    def get_ens_lower_bound(self) -> float:
         """
-        Calculates EPS lower bound
+        Calculates ENS lower bound
         """
         return sum(self.get_downstream_load(i) * self.theta[i] for i in self.G.nodes if i not in self.substations)
     
-    def get_eps_upper_bound(self) -> float:
+    def get_ens_upper_bound(self) -> float:
         """
-        Calculates EPS upper bound
+        Calculates ENS upper bound
         """
         return sum(
             self.get_downstream_load(substation) * sum(self.theta[i] for i in self.successors_dict[substation])
@@ -106,4 +106,4 @@ if __name__ == "__main__":
     F = read_pos_file(filename)
     G = Graph(F)
 
-    print(G.get_downstream_load(0), G.get_eps_lower_bound(), G.get_eps_upper_bound())
+    print(G.get_downstream_load(0), G.get_ens_lower_bound(), G.get_ens_upper_bound())
