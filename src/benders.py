@@ -42,8 +42,8 @@ def run_optimisation(file_number : int, P : float,
         j : [k for k in V if (j, k) in A]
         for j in V
     }
-    Elb = G.get_eps_lower_bound()
-    Eub = G.get_eps_upper_bound()
+    Elb = G.get_ens_lower_bound()
+    Eub = G.get_ens_upper_bound()
 
     """
     Variables
@@ -87,7 +87,6 @@ def run_optimisation(file_number : int, P : float,
     """
 
     def Callback(model : gp.Model, where : int):
-        # print('hi')
         if where == gp.GRB.Callback.MIPSOL:
             XV = model.cbGetSolution(X)
             XV = {x : round(XV[x]) for x in XV}

@@ -81,7 +81,7 @@ class Graph:
                 successors_arcs.add(a)
         return successors_arcs
     
-    def get_eps_lower_bound(self) -> float:
+    def get_ens_lower_bound(self) -> float:
         """
         Calculates ENS lower bound
         """
