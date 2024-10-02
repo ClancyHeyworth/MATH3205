@@ -52,6 +52,14 @@ class Graph:
 
         self.edges = edges
         self.V = {i for i in self.successors_dict}
+        self.successor_arcs = {a : self.get_successor_arcs(a[1]) for a in self.edges}
+
+        self._objectives = dict()
+        self.outgoing = { # stores nodes that go out of j for incoming (i, j)
+            j : [k for k in self.V if (j, k) in self.edges]
+            for j in self.V
+        }
+        self.downstream_load = {i : self.get_downstream_load(i) for i in self.V}
 
     def get_downstream_load(self, index : int) -> float:
         """
@@ -60,6 +68,18 @@ class Graph:
         """
         nodes = self.successors_dict[index] | {index}
         return sum(self.index_node[i].power for i in nodes if i not in self.substations)
+    
+    def get_downstream_theta(self, index : int) -> float:
+        nodes = self.successors_dict[index] | {index}
+        return sum(self.index_node[i].theta for i in nodes if i not in self.substations)
+    
+    def get_successor_arcs(self, index : int):
+        successors = self.successors_dict[index] | {index}
+        successors_arcs = set()
+        for a in self.edges:
+            if a[0] in successors and a[1] in successors:
+                successors_arcs.add(a)
+        return successors_arcs
     
     def get_eps_lower_bound(self) -> float:
         """
@@ -100,6 +120,57 @@ class Graph:
                 font_size=5, font_color="black", 
                 edge_color="gray", linewidths=1.5)
         plt.show()
+
+    def calculate_contribution(self, i, j, XV):
+        """
+        Returns the contribution of (i, j) to the objective function within the current
+        solution.
+        """
+        if (i, j) not in self._objectives:
+            if XV[i, j] == 1:
+                self._objectives[i, j] = 0
+            else:
+                self._objectives[(i, j)] = (1 - XV[i, j]) * (self.theta[j] + sum(
+                        self.calculate_contribution(j, k, XV) for k in self.outgoing[j])
+                )
+                
+        return self._objectives[i, j]
+    
+    def calculate_V_s(self, subtree : set[tuple[int, int]], 
+            XV : dict[tuple[int, int], int], reset : bool = True) -> float:
+        """
+        Returns contribution of subtree to objective function.\\
+        subtree : set of arcs (i, j)\\
+        XV : A dictionary mapping arcs (i, j) -> {0,1}, representing switch placement.
+        """
+        if reset:
+            self._objectives = dict()
+        return sum(
+            (self.downstream_load[a[0]] - self.downstream_load[a[1]]) *\
+            self.calculate_contribution(*a, XV) for a in subtree
+        )
+
+    def get_subtrees(self, XV : dict[tuple[int, int], int]) -> list[set[tuple[int, int]]]:
+        """
+        Returns a list of set of tuples representing arcs between switches.\\
+        XV : A dictionary mapping arcs (i, j) -> {0,1}, representing switch placement.
+        """
+        blocked_off_trees = {a : self.successor_arcs[a] | {a} 
+                            for a in XV if XV[a] == 1}
+        explored = set()
+        output = []
+
+        for arc in XV:
+            if XV[arc] == 1 or arc in explored:
+                continue
+            arc_tree = self.successor_arcs[arc] | {arc}
+            for root in blocked_off_trees:
+                if root in arc_tree:
+                    arc_tree = arc_tree.difference(blocked_off_trees[root])
+            explored |= arc_tree
+            output.append(arc_tree)
+        return output
+
 
 if __name__ == "__main__":
     filename = 'networks/R7.switch'

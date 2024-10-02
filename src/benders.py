@@ -1,6 +1,7 @@
 import gurobipy as gp
 from util import *
 from math import floor
+from copy import deepcopy
 
 def run_optimisation(file_number : int, P : float, 
                     verbal : bool = False) -> None:
@@ -53,14 +54,9 @@ def run_optimisation(file_number : int, P : float,
         for i, j in A
     }
 
-    F = { # Interruption flow on arc (i, j)
-        (i, j) : m.addVar(lb=0)
+    Lambda = {
+        (i, j) : m.addVar(lb = 0)
         for i, j in A
-    }
-
-    BigF = { # Interruption slack on node j
-        j : m.addVar()
-        for j in V
     }
 
     """
@@ -68,7 +64,7 @@ def run_optimisation(file_number : int, P : float,
     """
 
     m.setObjective(
-        gp.quicksum((L_D[i] - L_D[j]) * F[i, j] for (i, j) in A) + Elb,
+        gp.quicksum(Lambda[i, j] for i, j in A) + Elb,
         gp.GRB.MINIMIZE
     )
 
@@ -84,34 +80,46 @@ def run_optimisation(file_number : int, P : float,
     }
 
     # Number of switches <= Max switches
-    m.addConstr(gp.quicksum(X[i, j] for (i, j) in A) <= N)
-
-    # Node balance constraint
-    NodeBalance = {
-        (i, j) :
-        m.addConstr(
-            BigF[j] + F[i, j] == Theta[j] + gp.quicksum(F[j, k] for k in V if k in Outgoing[j])
-        )
-        for (i, j) in A
-    }
-
-    # Slack only non-zero if switch present on arc
-    SlackCoupling = {
-        (i, j) :
-        m.addConstr(
-            BigF[j] <= M * X[i, j] 
-        )
-        for (i, j) in A
-    }
+    MaxSwitches = m.addConstr(gp.quicksum(X[i, j] for (i, j) in A) <= N)
 
     """
     Optimize + Output
     """
+
+    def Callback(model : gp.Model, where : int):
+        # print('hi')
+        if where == gp.GRB.Callback.MIPSOL:
+            XV = model.cbGetSolution(X)
+            XV = {x : round(XV[x]) for x in XV}
+
+            print('Current EPS:', G.calculate_V_s(A, XV) + Elb)
+
+            subtrees = G.get_subtrees(XV)
+
+            for subtree in subtrees:
+                Savings = {}
+                V_s = G.calculate_V_s(subtree, XV)
+                for i, j in subtree:
+                    XV_copy = deepcopy(XV)
+                    XV_copy[i, j] = 1
+                    Savings[i, j] = V_s - G.calculate_V_s(subtree, XV_copy)
+                try:
+                    model.cbLazy(gp.quicksum(Lambda[i, j] for i, j in subtree) >= 
+                                V_s - 
+                                gp.quicksum(
+                                    Savings[i, j] * X[i, j] for i, j in subtree
+                                )
+                    )
+                except:
+                    print('Constraint adding failed. Clancys fault.')
+                    xxxx
     
     if not verbal:
-        m.setParam('OutputFlag', 0)
+        pass
+    m.setParam('OutputFlag', 0)
     m.setParam('MIPGap', 0)
-    m.optimize()
+    m.setParam('LazyConstraints', 1)
+    m.optimize(Callback)
 
     model_output = [x for x in X if round(X[x].x) == 1]
 
@@ -125,7 +133,7 @@ def run_optimisation(file_number : int, P : float,
     # subtrees = G.get_subtrees(model_output)
     # total = sum(G.calculate_V_s(subtree, model_output, reset=True) for subtree in subtrees)
     # print(total + Elb)
-    # print(m.ObjVal)
+    print(m.ObjVal)
 
     # output = 0
     # for i, j in A:
@@ -150,8 +158,6 @@ KNOWN_OPTIMAL_OUTPUTS = {
 
 if __name__ == "__main__":
 
-    P = 0.2
-
     # for i in range(3, 8):
     #     output = run_optimisation(i, P)
     #     print(i, output)
@@ -164,6 +170,7 @@ if __name__ == "__main__":
     import time
 
     t1 = time.time()
-    output = run_optimisation(4, 0.8, verbal=False)
+    P = 0.8
+    output = run_optimisation(5, P, verbal=False)
     t2 = time.time()
     print(t2 - t1)
