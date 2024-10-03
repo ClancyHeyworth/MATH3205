@@ -31,16 +31,14 @@ def run_optimisation(file_number : int, P : float,
     Data
     """
 
-    L_D = {i : G.get_downstream_load(i) for i in V} # Downstream load of node i
-    Theta = {v : G.index_node[v].theta for v in V}
+    L_D = G.downstream_load
+    Theta = G.theta
     M = 2**32 # Very large value
-    P = P
-    # N = floor(P * (len(A) - len(G.substations))) + len(G.substations) # Maximum number of switches that can be placed, including mandatory between substations and root
+    P = P # Percentage of arcs that can be switches
+    # Maximum number of switches that can be placed, including mandatory between substations and root
     N = floor(P * len(A)) + len(G.substations)
-    Outgoing = { # stores nodes that go out of j for incoming (i, j)
-        j : [k for k in V if (j, k) in A]
-        for j in V
-    }
+    Outgoing = G.outgoing # stores nodes that go out of j for incoming (i, j)
+
     Elb = G.get_ens_lower_bound()
     Eub = G.get_ens_upper_bound()
 
@@ -108,10 +106,14 @@ def run_optimisation(file_number : int, P : float,
     Optimize + Output
     """
     
-    if not verbal:
-        m.setParam('OutputFlag', 0)
+    # if not verbal:
+    m.setParam('OutputFlag', 0)
     m.setParam('MIPGap', 0)
+
+    t1 = time.time()
     m.optimize()
+    t2 = time.time()
+    print('actual optim time', t2 - t1)
 
     model_output = [x for x in X if round(X[x].x) == 1]
 
@@ -120,18 +122,7 @@ def run_optimisation(file_number : int, P : float,
         print('ENS', m.ObjVal)
         print('LB:', Elb)
         print('UB', Eub)
-    #print(model_output)
-    # model_output = {x : round(X[x].X) for x in X}
-    # subtrees = G.get_subtrees(model_output)
-    # total = sum(G.calculate_V_s(subtree, model_output, reset=True) for subtree in subtrees)
-    # print(total + Elb)
-    # print(m.ObjVal)
 
-    # output = 0
-    # for i, j in A:
-    #     downstream_theta = G.calculate_contribution(i, j, model_output)
-    #     output += (L_D[i] - L_D[j]) * downstream_theta
-    # print(output)
     return m.ObjVal
 
 KNOWN_OPTIMAL_OUTPUTS = {
@@ -152,18 +143,10 @@ if __name__ == "__main__":
 
     P = 0.2
 
-    # for i in range(3, 8):
-    #     output = run_optimisation(i, P)
-    #     print(i, output)
-    #     if (i, P) in KNOWN_OPTIMAL_OUTPUTS:
-    #         print('Difference from expected:', abs(100 * (KNOWN_OPTIMAL_OUTPUTS[i, P] - output)/KNOWN_OPTIMAL_OUTPUTS[i, P]))
-    #     print()
-    # P = 0.2
-    # output = run_optimisation(7, P, verbal=True)
-
     import time
 
     t1 = time.time()
-    output = run_optimisation(4, 0.8, verbal=False)
+    output = run_optimisation(6, 0.4, verbal=False)
+    print(output)
     t2 = time.time()
     print(t2 - t1)

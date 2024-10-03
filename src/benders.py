@@ -3,10 +3,10 @@ from util import *
 from math import floor
 from copy import deepcopy
 
-def run_optimisation(file_number : int, P : float, 
+def run_benders(file_number : int, P : float, 
                     verbal : bool = False) -> None:
     """
-    Runs basic MIP optimization for given parameters.\\
+    Runs Benders for for given parameters.\\
     file_number : which dataset to use, between 3 and 7\\
     P : proportion of arcs that can have a switch\\
     verbal : whether to print gurobi output, assigned switches and objective value
@@ -32,16 +32,8 @@ def run_optimisation(file_number : int, P : float,
     Data
     """
 
-    L_D = {i : G.get_downstream_load(i) for i in V} # Downstream load of node i
-    Theta = {v : G.index_node[v].theta for v in V}
-    M = 2**32 # Very large value
     P = P
-    # N = floor(P * (len(A) - len(G.substations))) + len(G.substations) # Maximum number of switches that can be placed, including mandatory between substations and root
-    N = floor(P * len(A)) + len(G.substations)
-    Outgoing = { # stores nodes that go out of j for incoming (i, j)
-        j : [k for k in V if (j, k) in A]
-        for j in V
-    }
+    N = floor(P * len(A)) + len(G.substations)# Maximum number of switches that can be placed, including mandatory between substations and root
     Elb = G.get_ens_lower_bound()
     Eub = G.get_ens_upper_bound()
 
@@ -85,23 +77,33 @@ def run_optimisation(file_number : int, P : float,
     """
     Optimize + Output
     """
-
+    _searched_subtrees = dict()
     def Callback(model : gp.Model, where : int):
         if where == gp.GRB.Callback.MIPSOL:
             XV = model.cbGetSolution(X)
             XV = {x : round(XV[x]) for x in XV}
 
-            print('Current ENS:', G.calculate_V_s(A, XV) + Elb)
+            if verbal:
+                print('Current ENS:', G.calculate_V_s(A, XV) + Elb)
 
             subtrees = G.get_subtrees(XV)
+
+            if verbal:
+                print('Average subtree length:', sum(len(subtree) for subtree in subtrees) / len(subtrees))
+                print('X used', sum(XV.values()), 'X Available', N)
 
             for subtree in subtrees:
                 Savings = {}
                 V_s = G.calculate_V_s(subtree, XV)
-                for i, j in subtree:
-                    XV_copy = deepcopy(XV)
-                    XV_copy[i, j] = 1
-                    Savings[i, j] = V_s - G.calculate_V_s(subtree, XV_copy)
+
+                if subtree not in _searched_subtrees:
+                    for i, j in subtree:
+                        XV[i, j] = 1
+                        Savings[i, j] = V_s - G.calculate_V_s(subtree, XV)
+                        XV[i, j] = 0
+                        _searched_subtrees[subtree] = Savings
+                Savings = _searched_subtrees[subtree]
+
                 try:
                     model.cbLazy(gp.quicksum(Lambda[i, j] for i, j in subtree) >= 
                                 V_s - 
@@ -111,34 +113,18 @@ def run_optimisation(file_number : int, P : float,
                     )
                 except:
                     print('Constraint adding failed. Clancys fault.')
-                    xxxx
-    
-    if not verbal:
-        pass
+                    quit()
+
     m.setParam('OutputFlag', 0)
     m.setParam('MIPGap', 0)
     m.setParam('LazyConstraints', 1)
     m.optimize(Callback)
 
-    model_output = [x for x in X if round(X[x].x) == 1]
-
     if verbal:
-        print('Switches placed:', model_output)
         print('ENS', m.ObjVal)
         print('LB:', Elb)
         print('UB', Eub)
-    #print(model_output)
-    # model_output = {x : round(X[x].X) for x in X}
-    # subtrees = G.get_subtrees(model_output)
-    # total = sum(G.calculate_V_s(subtree, model_output, reset=True) for subtree in subtrees)
-    # print(total + Elb)
-    print(m.ObjVal)
 
-    # output = 0
-    # for i, j in A:
-    #     downstream_theta = G.calculate_contribution(i, j, model_output)
-    #     output += (L_D[i] - L_D[j]) * downstream_theta
-    # print(output)
     return m.ObjVal
 
 KNOWN_OPTIMAL_OUTPUTS = {
@@ -168,8 +154,12 @@ if __name__ == "__main__":
 
     import time
 
+    from tqdm import tqdm
+
     t1 = time.time()
-    P = 0.2
-    output = run_optimisation(6, P, verbal=False)
+    P = 0.4
+    output = run_benders(6, P, verbal=True)
+    print('Final ENS', output)
     t2 = time.time()
+
     print(t2 - t1)
