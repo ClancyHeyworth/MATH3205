@@ -1,5 +1,4 @@
 from reader import *
-from copy import deepcopy
 import matplotlib.pyplot as plt
 import networkx as nx
 import itertools
@@ -51,7 +50,7 @@ class Graph:
                 print('Graph is fully connected from origin.')
 
         self.edges = edges
-        self.V = {i for i in self.successors_dict}
+        self.V = self.successors_dict.keys()
         self.successor_arcs = {a : self.get_successor_arcs(a[1]) for a in self.edges}
 
         self._downstream_theta = dict()
@@ -59,20 +58,20 @@ class Graph:
             j : [k for k in self.V if (j, k) in self.edges]
             for j in self.V
         }
-        self.downstream_load = {i : self.get_downstream_load(i) for i in self.V}
+
+        self.downstream_load = dict()
 
     def get_downstream_load(self, index : int) -> float:
         """
         Calculates load of descendant nodes from node\n
         index : origin to calculate from
         """
-        nodes = self.successors_dict[index] | {index}
-        return sum(self.index_node[i].power for i in nodes if i not in self.substations)
-    
-    def get_downstream_theta(self, index : int) -> float:
-        nodes = self.successors_dict[index] | {index}
-        return sum(self.index_node[i].theta for i in nodes if i not in self.substations)
-    
+        if index not in self.downstream_load:
+            nodes = self.successors_dict[index] | {index}
+            self.downstream_load[index] = \
+                sum(self.index_node[i].power for i in nodes if i not in self.substations)
+        return self.downstream_load[index]
+
     def get_successor_arcs(self, index : int):
         successors = self.successors_dict[index] | {index}
         successors_arcs = set()
@@ -127,12 +126,10 @@ class Graph:
         solution.
         """
         if (i, j) not in self._downstream_theta:
-            if XV[i, j] == 1:
-                self._downstream_theta[i, j] = 0
-            else:
-                self._downstream_theta[(i, j)] = (1 - XV[i, j]) * (self.theta[j] + sum(
-                        self.calculate_downstream_theta(j, k, XV) for k in self.outgoing[j])
-                )
+            self._downstream_theta[(i, j)] = (1 - XV[i, j]) *\
+            (self.theta[j] + 
+                sum(self.calculate_downstream_theta(j, k, XV) for k in self.outgoing[j])
+            )
                 
         return self._downstream_theta[i, j]
     
@@ -168,12 +165,12 @@ class Graph:
                 if root in arc_tree:
                     arc_tree = arc_tree.difference(blocked_off_trees[root])
             explored |= arc_tree
-            output.append(arc_tree)
+            output.append(tuple(arc_tree))
         return output
 
 
 if __name__ == "__main__":
-    filename = 'networks/R7.switch'
+    filename = 'networks/R6.switch'
     F = read_pos_file(filename)
     G = Graph(F)
 
