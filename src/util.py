@@ -54,7 +54,7 @@ class Graph:
         self.V = {i for i in self.successors_dict}
         self.successor_arcs = {a : self.get_successor_arcs(a[1]) for a in self.edges}
 
-        self._objectives = dict()
+        self._downstream_theta = dict()
         self.outgoing = { # stores nodes that go out of j for incoming (i, j)
             j : [k for k in self.V if (j, k) in self.edges]
             for j in self.V
@@ -121,20 +121,20 @@ class Graph:
                 edge_color="gray", linewidths=1.5)
         plt.show()
 
-    def calculate_contribution(self, i, j, XV):
+    def calculate_downstream_theta(self, i, j, XV):
         """
-        Returns the contribution of (i, j) to the objective function within the current
+        Returns the downstream theta of (i, j) within the current
         solution.
         """
-        if (i, j) not in self._objectives:
+        if (i, j) not in self._downstream_theta:
             if XV[i, j] == 1:
-                self._objectives[i, j] = 0
+                self._downstream_theta[i, j] = 0
             else:
-                self._objectives[(i, j)] = (1 - XV[i, j]) * (self.theta[j] + sum(
-                        self.calculate_contribution(j, k, XV) for k in self.outgoing[j])
+                self._downstream_theta[(i, j)] = (1 - XV[i, j]) * (self.theta[j] + sum(
+                        self.calculate_downstream_theta(j, k, XV) for k in self.outgoing[j])
                 )
                 
-        return self._objectives[i, j]
+        return self._downstream_theta[i, j]
     
     def calculate_V_s(self, subtree : set[tuple[int, int]], 
             XV : dict[tuple[int, int], int], reset : bool = True) -> float:
@@ -144,10 +144,10 @@ class Graph:
         XV : A dictionary mapping arcs (i, j) -> {0,1}, representing switch placement.
         """
         if reset:
-            self._objectives = dict()
+            self._downstream_theta = dict()
         return sum(
             (self.downstream_load[a[0]] - self.downstream_load[a[1]]) *\
-            self.calculate_contribution(*a, XV) for a in subtree
+            self.calculate_downstream_theta(*a, XV) for a in subtree
         )
 
     def get_subtrees(self, XV : dict[tuple[int, int], int]) -> list[set[tuple[int, int]]]:

@@ -91,7 +91,7 @@ def run_optimisation(file_number : int, P : float,
             XV = model.cbGetSolution(X)
             XV = {x : round(XV[x]) for x in XV}
 
-            print('Current EPS:', G.calculate_V_s(A, XV) + Elb)
+            print('Current ENS:', G.calculate_V_s(A, XV) + Elb)
 
             subtrees = G.get_subtrees(XV)
 
@@ -169,7 +169,7 @@ if __name__ == "__main__":
     import time
 
     t1 = time.time()
-    P = 0.8
-    output = run_optimisation(5, P, verbal=False)
+    P = 0.2
+    output = run_optimisation(6, P, verbal=False)
     t2 = time.time()
     print(t2 - t1)
