@@ -102,7 +102,8 @@ class Graph:
         G = self.G
         
         # pos = nx.spring_layout(G, seed=0, k=0.1)
-        pos = nx.circular_layout(G)
+        # pos = nx.circular_layout(G)
+        pos = nx.drawing.nx_pydot.graphviz_layout(G)
         # pos = nx.kamada_kawai_layout(G)
 
         components = list(nx.weakly_connected_components(G))

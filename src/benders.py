@@ -1,7 +1,7 @@
 import gurobipy as gp
 from util import *
 from math import floor
-from copy import deepcopy
+from generate import generate_graph
 
 def run_benders(file_number : int, P : float, 
                     verbal : bool = False) -> None:
@@ -157,7 +157,7 @@ if __name__ == "__main__":
     from tqdm import tqdm
 
     t1 = time.time()
-    P = 0.4
+    P = 0.80
     output = run_benders(6, P, verbal=True)
     print('Final ENS', output)
     t2 = time.time()
