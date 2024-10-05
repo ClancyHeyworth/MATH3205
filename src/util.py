@@ -103,7 +103,8 @@ class Graph:
         
         # pos = nx.spring_layout(G, seed=0, k=0.1)
         # pos = nx.circular_layout(G)
-        pos = nx.drawing.nx_pydot.graphviz_layout(G)
+        # pos = nx.drawing.nx_pydot.graphviz_layout(G)
+        pos = nx.nx_agraph.graphviz_layout(G)
         # pos = nx.kamada_kawai_layout(G)
 
         components = list(nx.weakly_connected_components(G))
@@ -171,8 +172,10 @@ class Graph:
 
 
 if __name__ == "__main__":
-    filename = 'networks/R6.switch'
+    filename = 'networks/R7.switch'
     F = read_pos_file(filename)
     G = Graph(F)
 
     print(G.get_downstream_load(0), G.get_ens_lower_bound(), G.get_ens_upper_bound())
+
+    G.plot_graph()

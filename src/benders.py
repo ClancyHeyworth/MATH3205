@@ -3,8 +3,7 @@ from util import *
 from math import floor
 from generate import generate_graph
 
-def run_benders(file_number : int, P : float, 
-                    verbal : bool = False) -> None:
+def run_benders(G : Graph, P : float,  verbal : bool = False) -> None:
     """
     Runs Benders for for given parameters.\\
     file_number : which dataset to use, between 3 and 7\\
@@ -16,9 +15,6 @@ def run_benders(file_number : int, P : float,
     Setup
     """
 
-    filename = f'networks/R{file_number}.switch'
-    F = read_pos_file(filename)
-    G = Graph(F)
     m = gp.Model()
 
     """
@@ -85,6 +81,8 @@ def run_benders(file_number : int, P : float,
 
             if verbal:
                 print('Current ENS:', G.calculate_V_s(A, XV) + Elb)
+                LambdaV = model.cbGetSolution(Lambda)
+                print('Lambda Sum', sum(LambdaV.values()))
 
             subtrees = G.get_subtrees(XV)
 
@@ -156,9 +154,13 @@ if __name__ == "__main__":
 
     from tqdm import tqdm
 
+    P = 0.2
+    file_number = 6
+    filename = f'networks/R{file_number}.switch'
+    F = read_pos_file(filename)
+    G = Graph(F)
     t1 = time.time()
-    P = 0.80
-    output = run_benders(6, P, verbal=True)
+    output = run_benders(G, P, verbal=True)
     print('Final ENS', output)
     t2 = time.time()
 

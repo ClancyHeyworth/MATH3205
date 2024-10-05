@@ -47,17 +47,22 @@ def generate_graph(n_nodes : int, n_substations : int,
                 nodes.append(new_node)
                 edges.append(Edge(current.index, node_index))
     
-    counts = {e : 0 for e in range(1, n_nodes + 1)}
-    for e in edges:
-        counts[e.node1] += 1
-    print(np.mean([counts[e] for e in counts if counts[e] != 0]))
+    # counts = {e : 0 for e in range(1, n_nodes + 1)}
+    # for e in edges:
+    #     counts[e.node1] += 1
+    # print(np.mean([counts[e] for e in counts if counts[e] != 0]))
     G = Graph(Info(nodes_placed, len(edges), 0, nodes, edges, [], []))
     return G
 
 
 if __name__ == "__main__":
-    G = generate_graph(300, 4, 0.1, 0.15, 300, 150, 5)
+    # G = generate_graph(300, 4, 0.1, 0.15, 300, 150, 5)
+    G = generate_graph(300, 2, 0.1, 0.15, 300, 150, 4)
 
     print(G.get_downstream_load(0), G.get_ens_lower_bound(), G.get_ens_upper_bound())
 
     G.plot_graph()
+
+    from benders import run_benders
+
+    run_benders(G, 0.9, verbal=True)
