@@ -2,8 +2,7 @@ import gurobipy as gp
 from util import *
 from math import floor
 
-def run_optimisation(file_number : int, P : float, 
-                    verbal : bool = False) -> None:
+def run_mip(G : Graph, P : float, verbal : bool = False) -> None:
     """
     Runs basic MIP optimization for given parameters.\\
     file_number : which dataset to use, between 3 and 7\\
@@ -15,9 +14,6 @@ def run_optimisation(file_number : int, P : float,
     Setup
     """
 
-    filename = f'networks/R{file_number}.switch'
-    F = read_pos_file(filename)
-    G = Graph(F)
     m = gp.Model()
 
     """
@@ -141,12 +137,16 @@ KNOWN_OPTIMAL_OUTPUTS = {
 
 if __name__ == "__main__":
 
-    P = 0.2
-
     import time
 
+    file_number = 6
+    filename = f'networks/R{file_number}.switch'
+    F = read_pos_file(filename)
+    G = Graph(F)
+    P = 0.2
+
     t1 = time.time()
-    output = run_optimisation(6, 0.4, verbal=False)
+    output = run_mip(G, 0.4, verbal=False)
     print(output)
     t2 = time.time()
     print(t2 - t1)

@@ -344,7 +344,7 @@ from copy import deepcopy
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
-def SA(G:Graph, P:float):
+def run_sa(G:Graph, P:float, verbal : bool = False):
     downstream_load = {i : G.get_downstream_load(i) for i in G.V}
     theta = G.theta
     Eub = G.get_ens_upper_bound()
@@ -357,16 +357,12 @@ def SA(G:Graph, P:float):
     indexes = np.random.choice(len(A_), size = N - len(G.substations))
     s = [A_[i] for i in indexes]
 
-    outgoing = { # stores nodes that go out of j for incoming (i, j)
-        j : [k for k in G.V if (j, k) in A]
-        for j in G.V
-    }
+    outgoing = G.outgoing # stores nodes that go out of j for incoming (i, j)
 
     k_max = 1000
     percentage_replace = 0.2
     n_replace = floor(percentage_replace * len(s))
 
-    # e_initial = energy_function(A_, s, downstream_theta, downstream_load)
     e_initial = energy_function(A_, s, theta, downstream_load, G, Eub, outgoing)
     energy_values = [e_initial]
 
@@ -374,9 +370,6 @@ def SA(G:Graph, P:float):
     best_s = s
 
     temps = []
-    probs = []
-
-    j = 0
 
     T = None
     a = 0.99
@@ -411,44 +404,37 @@ def SA(G:Graph, P:float):
         if e_s_new < best_e:
             best_e = e_s_new
             best_s = s_new
-    
-    run_optimisation_fixed(G, P, best_s, verbal=True)
-    fig, ax1 = plt.subplots()
 
-    ax1.set_xlabel('Iteration (k)')
-    ax2 = ax1.twinx()
-    ax1.plot(energy_values, 'g-')
-    ax2.plot(temps, 'r-')
+    if verbal:
+        run_optimisation_fixed(G, P, best_s, verbal=True)
+        fig, ax1 = plt.subplots()
 
-    ax1.set_ylabel('Energy')
-    ax2.set_ylabel('Temperature')
-    plt.show()
+        ax1.set_xlabel('Iteration (k)')
+        ax2 = ax1.twinx()
+        ax1.plot(energy_values, 'g-')
+        ax2.plot(temps, 'r-')
+
+        ax1.set_ylabel('Energy')
+        ax2.set_ylabel('Temperature')
+        plt.show()
+    solution = {
+        s : 1 for s in best_s
+    }
+    for a in A:
+        if a not in solution:
+            solution[a] = 0
+        if a[0] == 0:
+            solution[a] = 1
+    return best_e, solution
+
 if __name__ == "__main__":
 
-    # P = 0.2
-
-    # for i in range(4, 8):
-    #     output = run_optimisation(i, P)
-    #     break
-    #     print(i, output)
-    #     if (i, P) in KNOWN_OPTIMAL_OUTPUTS:
-    #         print('Difference from expected:', abs(100 * (KNOWN_OPTIMAL_OUTPUTS[i, P] - output)/KNOWN_OPTIMAL_OUTPUTS[i, P]))
-    #     print()
-    
-    # output = run_optimisation(7, P, verbal=True)
-
-    # import time
-
-    # t1 = time.time()
-    # output = run_optimisation(4, P, verbal=False)
-    # t2 = time.time()
-    # print(t2 - t1)
     P = 0.8
     file_number = 6
     filename = f'networks/R{file_number}.switch'
     F = read_pos_file(filename)
     G = Graph(F)
-    SA(G, P)
+    run_sa(G, P)
 
 
    
