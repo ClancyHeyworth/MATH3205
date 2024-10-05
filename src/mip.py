@@ -2,7 +2,7 @@ import gurobipy as gp
 from util import *
 from math import floor
 
-def run_mip(G : Graph, P : float, verbal : bool = False) -> None:
+def run_mip(G : Graph, P : float, verbal : bool = False, time_limit : bool = False) -> None:
     """
     Runs basic MIP optimization for given parameters.\\
     file_number : which dataset to use, between 3 and 7\\
@@ -103,23 +103,27 @@ def run_mip(G : Graph, P : float, verbal : bool = False) -> None:
     """
     
     # if not verbal:
-    m.setParam('OutputFlag', 0)
+    if not verbal:
+        m.setParam('OutputFlag', 0)
     m.setParam('MIPGap', 0)
 
-    t1 = time.time()
-    m.optimize()
-    t2 = time.time()
-    print('actual optim time', t2 - t1)
+    # m.setParam('PoolSearchMode', 1)
+    # m.setParam('PoolSolutions', 10)
 
-    model_output = [x for x in X if round(X[x].x) == 1]
+    if time_limit:
+        m.setParam('TimeLimit', 600)
+
+    m.optimize()
 
     if verbal:
+        model_output = [x for x in X if round(X[x].x) == 1]
         print('Switches placed:', model_output)
         print('ENS', m.ObjVal)
         print('LB:', Elb)
         print('UB', Eub)
 
-    return m.ObjVal
+    true_output = {x : round(X[x].x) for x in X}
+    return m.ObjVal, true_output
 
 KNOWN_OPTIMAL_OUTPUTS = {
     (3, 0.2) : 2715.24,
@@ -143,10 +147,10 @@ if __name__ == "__main__":
     filename = f'networks/R{file_number}.switch'
     F = read_pos_file(filename)
     G = Graph(F)
-    P = 0.2
+    P = 0.8
 
     t1 = time.time()
-    output = run_mip(G, 0.4, verbal=False)
+    output = run_mip(G, P, verbal=True)
     print(output)
     t2 = time.time()
     print(t2 - t1)

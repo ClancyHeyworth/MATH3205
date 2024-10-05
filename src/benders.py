@@ -3,7 +3,7 @@ from util import *
 from math import floor
 from generate import generate_graph
 
-def run_benders(G : Graph, P : float,  verbal : bool = False) -> None:
+def run_benders(G : Graph, P : float,  verbal : bool = False, time_limit : bool = False) -> None:
     """
     Runs Benders for for given parameters.\\
     file_number : which dataset to use, between 3 and 7\\
@@ -116,6 +116,9 @@ def run_benders(G : Graph, P : float,  verbal : bool = False) -> None:
     m.setParam('OutputFlag', 0)
     m.setParam('MIPGap', 0)
     m.setParam('LazyConstraints', 1)
+
+    if time_limit:
+        m.setParam('TimeLimit', 600)
     m.optimize(Callback)
 
     if verbal:
@@ -123,7 +126,8 @@ def run_benders(G : Graph, P : float,  verbal : bool = False) -> None:
         print('LB:', Elb)
         print('UB', Eub)
 
-    return m.ObjVal
+    solution = {x : round(X[x].X) for x in X}
+    return m.ObjVal, solution
 
 KNOWN_OPTIMAL_OUTPUTS = {
     (3, 0.2) : 2715.24,
