@@ -31,10 +31,12 @@ def generate_graph(n_nodes : int, n_substations : int,
             leaf_nodes.remove(current)
 
             if len(leaf_nodes) == 0:
-                num_children = mean_children
+                num_children = int(mean_children) + 1
             else:
-                num_children = min(np.random.poisson(lam = mean_children), node_split[i - 1] - nodes_placed)
-
+                num_children = np.random.poisson(lam = mean_children)
+                if nodes_placed + num_children > node_split[i - 1]:
+                    num_children = node_split[i - 1] - nodes_placed
+                # num_children = min(, node_split[i - 1] - nodes_placed)
             for _ in range(num_children):
                 node_index = total_placed
                 nodes_placed += 1

@@ -58,8 +58,10 @@ class Graph:
             j : [k for k in self.V if (j, k) in self.edges]
             for j in self.V
         }
+        self.downstream_load = {}
+        self.downstream_load = {i : self.get_downstream_load(i) for i in self.V}
 
-        self.downstream_load = dict()
+        self.M = 10 * sum([self.theta[t] for t in self.theta])
 
     def get_downstream_load(self, index : int) -> float:
         """
@@ -170,8 +172,7 @@ class Graph:
             output.append(tuple(arc_tree))
         return output
 
-
-if __name__ == "__main__":
+def main():
     filename = 'networks/R7.switch'
     F = read_pos_file(filename)
     G = Graph(F)
@@ -179,3 +180,6 @@ if __name__ == "__main__":
     print(G.get_downstream_load(0), G.get_ens_lower_bound(), G.get_ens_upper_bound())
 
     G.plot_graph()
+
+if __name__ == "__main__":
+    main()

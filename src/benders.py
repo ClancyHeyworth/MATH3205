@@ -1,14 +1,19 @@
 import gurobipy as gp
-from util import *
+from util import Graph
+from reader import read_pos_file
 from math import floor
-from generate import generate_graph
+import time
 
-def run_benders(G : Graph, P : float,  verbal : bool = False, time_limit : bool = False) -> None:
+def run_benders(G : Graph, P : float,  verbal : bool = False, time_limit : bool = False) \
+        -> tuple[float, dict[tuple[int, int], int], dict[tuple[int, int], float]]:
     """
-    Runs Benders for for given parameters.\\
-    file_number : which dataset to use, between 3 and 7\\
+    Runs Benders optimization for given parameters.\\
+    G : Graph object\\
     P : proportion of arcs that can have a switch\\
-    verbal : whether to print gurobi output, assigned switches and objective value
+    verbal : whether to print gurobi output, assigned switches and objective value\\
+    time_limit : whether to set 600 second time limit on gurobi optimization \\
+    Returns:\\
+    objective value, X values, Lambda values
     """
     
     """
@@ -70,6 +75,13 @@ def run_benders(G : Graph, P : float,  verbal : bool = False, time_limit : bool 
     # Number of switches <= Max switches
     MaxSwitches = m.addConstr(gp.quicksum(X[i, j] for (i, j) in A) <= N)
 
+    # Initial cut
+    # InitialCut = {
+    #     (i, j) :
+    #     m.addConstr(Lambda[i, j] >= G.theta[j] * (G.downstream_load[i] - G.downstream_load[j]) * (1 - X[i, j]))
+    #     for i, j in A
+    # }
+
     """
     Optimize + Output
     """
@@ -80,6 +92,7 @@ def run_benders(G : Graph, P : float,  verbal : bool = False, time_limit : bool 
             XV = {x : round(XV[x]) for x in XV}
 
             if verbal:
+                print('------------')
                 print('Current ENS:', G.calculate_V_s(A, XV) + Elb)
                 LambdaV = model.cbGetSolution(Lambda)
                 print('Lambda Sum', sum(LambdaV.values()))
@@ -88,7 +101,8 @@ def run_benders(G : Graph, P : float,  verbal : bool = False, time_limit : bool 
 
             if verbal:
                 print('Average subtree length:', sum(len(subtree) for subtree in subtrees) / len(subtrees))
-                print('X used', sum(XV.values()), 'X Available', N)
+                print(f'X used: {sum(XV.values())}, X Available: {N}')
+                print()
 
             for subtree in subtrees:
                 Savings = {}
@@ -127,7 +141,7 @@ def run_benders(G : Graph, P : float,  verbal : bool = False, time_limit : bool 
         print('UB', Eub)
 
     solution = {x : round(X[x].X) for x in X}
-    return m.ObjVal, solution
+    return m.ObjVal, solution, {x : Lambda[x].X for x in Lambda}
 
 KNOWN_OPTIMAL_OUTPUTS = {
     (3, 0.2) : 2715.24,
@@ -143,29 +157,18 @@ KNOWN_OPTIMAL_OUTPUTS = {
     (6, 0.8) : 1437.63
 }
 
-if __name__ == "__main__":
-
-    # for i in range(3, 8):
-    #     output = run_optimisation(i, P)
-    #     print(i, output)
-    #     if (i, P) in KNOWN_OPTIMAL_OUTPUTS:
-    #         print('Difference from expected:', abs(100 * (KNOWN_OPTIMAL_OUTPUTS[i, P] - output)/KNOWN_OPTIMAL_OUTPUTS[i, P]))
-    #     print()
-    # P = 0.2
-    # output = run_optimisation(7, P, verbal=True)
-
-    import time
-
-    from tqdm import tqdm
-
+def main():
     P = 0.2
     file_number = 6
     filename = f'networks/R{file_number}.switch'
     F = read_pos_file(filename)
     G = Graph(F)
     t1 = time.time()
-    output = run_benders(G, P, verbal=True)
-    print('Final ENS', output)
+    output = run_benders(G, P, verbal=True)[0]
+    print('Final ENS:', output)
     t2 = time.time()
 
-    print(t2 - t1)
+    print('Time taken:', t2 - t1)
+
+if __name__ == "__main__":
+    main()
