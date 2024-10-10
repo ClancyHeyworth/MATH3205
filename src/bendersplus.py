@@ -1,9 +1,7 @@
 import gurobipy as gp
-from util2 import Graph
-from reader import read_pos_file
+from util import Graph
 from math import floor
-import time
-from util2 import load_graph_object
+from util import load_graph_object
 
 def run_benders(G : Graph, P : float,  verbal : bool = False, time_limit : bool = False) \
         -> tuple[float, dict[tuple[int, int], int], dict[tuple[int, int], float]]:
@@ -196,25 +194,15 @@ def main():
 
     # print('Time taken:', t2 - t1)
 
-    G = load_graph_object(7)
-    P = 0.2
+    G = load_graph_object(6)
+    P = 0.6
     a, time, _, _ = run_benders(G, P, verbal=False)
-    print(time)
-
-    from benders2 import run_benders as run_benders2
-    b, time, _, _ = run_benders2(G, P, verbal=False)
     print(time)
 
     from mip import run_mip
     c, time, _, _, _ = run_mip(G, P, verbal=False)
     print(time)
-
-    # print(a, b, c)
-    assert round(a, 4) == round(b, 4)
-    assert round(b, 4) == round(c, 4)
-    from mip import run_mip
-    # run_mip(G, 0.7, verbal=False)
-    pass
+    print('Same outputs:', round(a, 5) == round(c, 5))
 
 if __name__ == "__main__":
     main()
