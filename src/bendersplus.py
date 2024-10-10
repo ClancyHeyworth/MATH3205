@@ -1,8 +1,9 @@
 import gurobipy as gp
-from util import Graph
+from util2 import Graph
 from reader import read_pos_file
 from math import floor
 import time
+from util2 import load_graph_object
 
 def run_benders(G : Graph, P : float,  verbal : bool = False, time_limit : bool = False) \
         -> tuple[float, dict[tuple[int, int], int], dict[tuple[int, int], float]]:
@@ -52,12 +53,17 @@ def run_benders(G : Graph, P : float,  verbal : bool = False, time_limit : bool 
         for i, j in A
     }
 
+    LambdaSlack = {
+        j : m.addVar(lb = 0)
+        for j in V
+    }
+
     """
     Objective
     """
 
     m.setObjective(
-        gp.quicksum(Lambda[i, j] for i, j in A) + Elb,
+        gp.quicksum((G.downstream_load[i] - G.downstream_load[j]) * Lambda[i, j] for i, j in A) + Elb,
         gp.GRB.MINIMIZE
     )
 
@@ -75,23 +81,27 @@ def run_benders(G : Graph, P : float,  verbal : bool = False, time_limit : bool 
     # Number of switches <= Max switches
     MaxSwitches = m.addConstr(gp.quicksum(X[i, j] for (i, j) in A) <= N)
 
-    # Initial cut
-    InitialCut = {
+    theta_sum = sum([v for v in G.theta.values()])
+    M = theta_sum * G.downstream_load[0]
+
+    Equality = {
         (i, j) :
-        m.addConstr(Lambda[i, j] >= G.theta[j] * (G.downstream_load[i] - G.downstream_load[j]) * (1 - X[i, j]))
+        m.addConstr(Lambda[i, j] + LambdaSlack[j] == G.theta[j] + gp.quicksum(Lambda[j, k] for k in G.outgoing[j]))
         for i, j in A
     }
 
-    # InitialCut2 =  m.addConstr(gp.quicksum(Lambda[i, j] for i, j in Lambda) >= 
-    #     gp.quicksum(G.theta[j] * (G.downstream_load[i] - G.downstream_load[j]) * (1 - X[i, j]) for i, j in A)
-    # )
+    M = theta_sum
+    Slack = {
+        (i, j) :
+        m.addConstr(LambdaSlack[j] <= M * X[i, j])
+        for i, j in A
+    }
 
-    # non parametric order statistic
-    # pearson rank test
     """
     Optimize + Output
     """
     _searched_subtrees = dict()
+    _downstream_theta = dict()
     def Callback(model : gp.Model, where : int):
         if where == gp.GRB.Callback.MIPSOL:
             XV = model.cbGetSolution(X)
@@ -112,19 +122,22 @@ def run_benders(G : Graph, P : float,  verbal : bool = False, time_limit : bool 
 
             for subtree in subtrees:
                 Savings = {}
-                V_s = G.calculate_V_s(subtree, XV)
+
+                if subtree not in _downstream_theta:
+                    _downstream_theta[subtree] = G.get_downstream_theta(subtree, XV)
+                theta_s = _downstream_theta[subtree]
 
                 if subtree not in _searched_subtrees:
                     for i, j in subtree:
                         XV[i, j] = 1
-                        Savings[i, j] = V_s - G.calculate_V_s(subtree, XV)
+                        Savings[i, j] = theta_s - G.get_downstream_theta(subtree, XV)
                         XV[i, j] = 0
                         _searched_subtrees[subtree] = Savings
                 Savings = _searched_subtrees[subtree]
 
                 try:
                     model.cbLazy(gp.quicksum(Lambda[i, j] for i, j in subtree) >= 
-                                V_s - 
+                                theta_s - 
                                 gp.quicksum(
                                     Savings[i, j] * X[i, j] for i, j in subtree
                                 )
@@ -137,6 +150,9 @@ def run_benders(G : Graph, P : float,  verbal : bool = False, time_limit : bool 
     m.setParam('MIPGap', 0)
     m.setParam('LazyConstraints', 1)
 
+    # dynamic desegration
+    # accumalative cuts
+
     if time_limit:
         m.setParam('TimeLimit', 600)
     m.optimize(Callback)
@@ -147,7 +163,7 @@ def run_benders(G : Graph, P : float,  verbal : bool = False, time_limit : bool 
         print('UB', Eub)
 
     solution = {x : round(X[x].X) for x in X}
-    return m.ObjVal, solution, {x : Lambda[x].X for x in Lambda}
+    return m.ObjVal, m.Runtime, solution, {x : Lambda[x].X for x in Lambda}
 
 KNOWN_OPTIMAL_OUTPUTS = {
     (3, 0.2) : 2715.24,
@@ -179,6 +195,25 @@ def main():
 
 
     # print('Time taken:', t2 - t1)
+
+    G = load_graph_object(7)
+    P = 0.2
+    a, time, _, _ = run_benders(G, P, verbal=False)
+    print(time)
+
+    from benders2 import run_benders as run_benders2
+    b, time, _, _ = run_benders2(G, P, verbal=False)
+    print(time)
+
+    from mip import run_mip
+    c, time, _, _, _ = run_mip(G, P, verbal=False)
+    print(time)
+
+    # print(a, b, c)
+    assert round(a, 4) == round(b, 4)
+    assert round(b, 4) == round(c, 4)
+    from mip import run_mip
+    # run_mip(G, 0.7, verbal=False)
     pass
 
 if __name__ == "__main__":

@@ -130,7 +130,7 @@ def run_mip(G : Graph, P : float, verbal : bool = False, time_limit : bool = Fal
         print('LB:', Elb)
         print('UB', Eub)
 
-    return m.ObjVal, {x : round(X[x].X) for x in X}, {x : F[x].X for x in F}, {x : BigF[x].X for x in BigF}
+    return m.ObjVal, m.Runtime, {x : round(X[x].X) for x in X}, {x : F[x].X for x in F}, {x : BigF[x].X for x in BigF}
 
 KNOWN_OPTIMAL_OUTPUTS = {
     (3, 0.2) : 2715.24,

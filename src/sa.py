@@ -144,7 +144,7 @@ def run_optimisation(file_number : int, P : float,
     # print(np.mean([(L_D[a[0]] - L_D[a[1]]) * downstream_theta[a[1]] for a in model_output]))
     return m.ObjVal
 
-def run_optimisation_fixed(G:Graph, P : float, switches : list[tuple[int, int]],
+def run_optimisation_fixed(G:Graph, P : float, solution : dict[tuple[int, int], int],
                     verbal : bool = False) -> None:
     """
     Runs basic MIP optimization for given parameters.\\
@@ -191,11 +191,6 @@ def run_optimisation_fixed(G:Graph, P : float, switches : list[tuple[int, int]],
         for i, j in A
     }
 
-    # X = { # Assignment of switch on arc (i, j)
-    #     (i, j) : m.addVar(ub=1)
-    #     for i, j in A
-    # }
-
     F = { # Interruption flow on arc (i, j)
         (i, j) : m.addVar(lb=0)
         for i, j in A
@@ -228,8 +223,8 @@ def run_optimisation_fixed(G:Graph, P : float, switches : list[tuple[int, int]],
 
     SwitchPlacements = {
         (i, j) :
-        m.addConstr(X[i, j] == 1)
-        for (i, j) in switches
+        m.addConstr(X[i, j] == solution[i, j])
+        for (i, j) in solution
     }
 
     # Number of switches <= Max switches
@@ -266,7 +261,8 @@ def run_optimisation_fixed(G:Graph, P : float, switches : list[tuple[int, int]],
     Optimize + Output
     """
 
-    m.setParam('OutputFlag', 0)
+    if not verbal:
+        m.setParam('OutputFlag', 0)
     m.setParam('MIPGap', 0)
     m.optimize()
 
@@ -274,8 +270,6 @@ def run_optimisation_fixed(G:Graph, P : float, switches : list[tuple[int, int]],
 
     if verbal:
         # print('Switches placed:', model_output)
-        print(N)
-        print(len(switches) + len(G.substations))
         print('ENS', m.ObjVal)
         print('LB:', Elb)
         print('UB', Eub)
