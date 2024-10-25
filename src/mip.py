@@ -4,21 +4,22 @@ This module contains run_mip, the function used to run the mixed-integer model.
 
 import gurobipy as gp
 from util import Graph
-from reader import read_pos_file
 from math import floor
-import time
+from params import ModelOutput, ModelParams
 
-def run_mip(G : Graph, P : float, verbal : bool = False, time_limit : bool = False) \
-        -> tuple[float, dict[tuple[int, int], int], dict[tuple[int, int], float], dict[tuple[int, int], float]]:
+def run_mip(params : ModelParams) -> ModelOutput:
     """
     Runs basic MIP optimization for given parameters.\\
-    G : Graph object\\
-    P : proportion of arcs that can have a switch\\
-    verbal : whether to print gurobi output, assigned switches and objective value\\
-    time_limit : whether to set 600 second time limit on gurobi optimization \\
-    Returns:\\
-    objective value, X values, F values
     """
+
+    """
+    Loading in parameters
+    """
+    G = params.G
+    verbal = params.verbal
+    time_limit = params.time_limit
+    presolve = params.do_presolve
+    P = params.P
     
     """
     Setup
@@ -116,10 +117,15 @@ def run_mip(G : Graph, P : float, verbal : bool = False, time_limit : bool = Fal
     # if not verbal:
     if not verbal:
         m.setParam('OutputFlag', 0)
-    m.setParam('MIPGap', 0)
+    m.setParam('MIPGap', params.MIPGap)
+    m.setParam('FeasibilityTol', params.FeasibilityTol)
+    m.setParam('OptimalityTol', params.OptimalityTol)
+    m.setParam('Seed', params.gurobi_seed)
 
     if time_limit:
         m.setParam('TimeLimit', 600)
+    if not presolve:
+        m.setParam('Presolve', 0)
 
     m.optimize()
 
@@ -129,8 +135,7 @@ def run_mip(G : Graph, P : float, verbal : bool = False, time_limit : bool = Fal
         print('ENS', m.ObjVal)
         print('LB:', Elb)
         print('UB', Eub)
-
-    return m.ObjVal, m.Runtime, {x : round(X[x].X) for x in X}, {x : F[x].X for x in F}, {x : BigF[x].X for x in BigF}
+    return ModelOutput(m.ObjVal, {x : round(X[x].X) for x in X}, {x : F[x].X for x in F}, {x : BigF[x].X for x in BigF}, m.Runtime) 
 
 KNOWN_OPTIMAL_OUTPUTS = {
     (3, 0.2) : 2715.24,
@@ -147,28 +152,8 @@ KNOWN_OPTIMAL_OUTPUTS = {
 }
 
 def main():
-    # for k, p in KNOWN_OPTIMAL_OUTPUTS:
-    #     file_number = k
-    #     filename = f'networks/R{file_number}.switch'
-    #     F = read_pos_file(filename)
-    #     G = Graph(F)
-    #     P = p
-
-    #     t1 = time.time()
-    #     output = run_mip(G, P, verbal=False)[0]
-    #     # print(output - KNOWN_OPTIMAL_OUTPUTS[k, p])
-    #     t2 = time.time()
-    #     print(t2 - t1)
-
-    file_number = 6
-    filename = f'networks/R{file_number}.switch'
-    F = read_pos_file(filename)
-    G = Graph(F)
-    P = 0.6
-    t1 = time.time()
-    output = run_mip(G, P, verbal=True)[0]
-    print(output)
-    t2 = time.time()
+    params = ModelParams(6, 0.6, verbal=True)
+    print(run_mip(params).time)
 
 if __name__ == "__main__":
     main()

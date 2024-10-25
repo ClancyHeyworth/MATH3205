@@ -70,10 +70,10 @@ class Graph:
             self.successor_arcs = {a : self.get_successor_arcs(a[1]) for a in self.edges}
 
             self._downstream_theta = dict()
-            self.outgoing = {i : set() for i in self.V}
-            for i, j in self.edges:
-                self.outgoing[i] = self.outgoing[i] | {j}
-
+            self.outgoing = { # stores nodes that go out of j for incoming (i, j)
+                j : set([k for k in self.V if (j, k) in self.edges])
+                for j in self.V
+            }
             self.downstream_load = {}
             self.downstream_load = {i : self.get_downstream_load(i) for i in self.V}
 
@@ -147,7 +147,11 @@ class Graph:
         """
         G = self.G
         
+        # pos = nx.spring_layout(G, seed=0, k=0.1)
+        # pos = nx.circular_layout(G)
+        # pos = nx.drawing.nx_pydot.graphviz_layout(G)
         pos = nx.nx_agraph.graphviz_layout(G)
+        # pos = nx.kamada_kawai_layout(G)
 
         components = list(nx.weakly_connected_components(G))
         colors = itertools.cycle(['lightblue', 'lightgreen', 'red', 'purple', 'orange'])
@@ -170,6 +174,13 @@ class Graph:
         solution.
         """
         if (i, j) not in self._downstream_theta:
+            # if (i, j) not in subtree:
+            #     self._downstream_theta[i, j] = 0
+            # else:
+            #     self._downstream_theta[(i, j)] = (1 - XV[i, j]) *\
+            #     (self.theta[j] + 
+            #         sum(self.calculate_downstream_theta(j, k, XV, subtree) for k in self.outgoing[j])
+            #     )
             self._downstream_theta[(i, j)] = (1 - XV[i, j]) *\
                 (self.theta[j] + 
                     sum(self.calculate_downstream_theta(j, k, XV) for k in self.outgoing[j])
@@ -178,25 +189,14 @@ class Graph:
         return self._downstream_theta[i, j]
     
     def calculate_V_s(self, subtree : set[tuple[int, int]], 
-            XV : dict[tuple[int, int], int]) -> float:
+            XV : dict[tuple[int, int], int], reset : bool = True) -> float:
         """
         Returns contribution of subtree to objective function.\\
         subtree : set of arcs (i, j)\\
         XV : A dictionary mapping arcs (i, j) -> {0,1}, representing switch placement.
         """
-        self._downstream_theta = dict()
-        return sum(
-            (self.downstream_load[a[0]] - self.downstream_load[a[1]]) *\
-            self.calculate_downstream_theta(*a, XV) for a in subtree
-        )
-    
-    def calculate_ENS(self, subtree : set[tuple[int, int]], 
-            XV : dict[tuple[int, int], int]) -> float:
-        """
-        Returns contribution of subtree to objective function.\\
-        subtree : set of arcs (i, j)\\
-        XV : A dictionary mapping arcs (i, j) -> {0,1}, representing switch placement.
-        """
+        # if reset:
+        #     self._downstream_theta = dict()
         self._downstream_theta = dict()
         return sum(
             (self.downstream_load[a[0]] - self.downstream_load[a[1]]) *\
@@ -250,3 +250,15 @@ def load_graph_object(file_number) -> Graph:
     with open(filename, 'wb') as handle:
         pickle.dump(G_pickle, handle, protocol=pickle.HIGHEST_PROTOCOL)
     return G
+
+def main():
+    from benders import run_benders
+    from mip import run_mip
+
+    G = load_graph_object(3)
+    print(run_benders(G, 0.8)[0])
+    print(run_mip(G, 0.8)[0])
+    G.plot_graph()
+
+if __name__ == "__main__":
+    main()

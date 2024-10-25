@@ -1,22 +1,26 @@
 import gurobipy as gp
 from util import Graph
+from reader import read_pos_file
 from math import floor
+import time
 from util import load_graph_object
-from params import ModelParams, ModelOutput
 
-def run_benders(params : ModelParams) -> ModelOutput:
+def run_benders(G : Graph, P : float,  verbal : bool = False, time_limit : bool = False) \
+        -> tuple[float, dict[tuple[int, int], int], dict[tuple[int, int], float]]:
     """
     Runs Benders optimization for given parameters.\\
+    G : Graph object\\
+    P : proportion of arcs that can have a switch\\
+    verbal : whether to print gurobi output, assigned switches and objective value\\
+    time_limit : whether to set 600 second time limit on gurobi optimization \\
+    Returns:\\
+    objective value, X values, Lambda values
     """
     
     """
     Setup
     """
-    
-    G = params.G
-    verbal = params.verbal
-    presolve = params.do_presolve
-    time_limit = params.time_limit
+
     m = gp.Model()
 
     """
@@ -30,7 +34,7 @@ def run_benders(params : ModelParams) -> ModelOutput:
     Data
     """
 
-    P = params.P
+    P = P
     N = floor(P * len(A)) + len(G.substations)# Maximum number of switches that can be placed, including mandatory between substations and root
     Elb = G.get_ens_lower_bound()
     Eub = G.get_ens_upper_bound()
@@ -44,12 +48,12 @@ def run_benders(params : ModelParams) -> ModelOutput:
         for i, j in A
     }
 
-    F = {
+    Lambda = {
         (i, j) : m.addVar(lb = 0)
         for i, j in A
     }
 
-    FSlack = {
+    LambdaSlack = {
         j : m.addVar(lb = 0)
         for j in V
     }
@@ -59,7 +63,7 @@ def run_benders(params : ModelParams) -> ModelOutput:
     """
 
     m.setObjective(
-        gp.quicksum((G.downstream_load[i] - G.downstream_load[j]) * F[i, j] for i, j in A) + Elb,
+        gp.quicksum(Lambda[i, j] for i, j in A) + Elb,
         gp.GRB.MINIMIZE
     )
 
@@ -77,27 +81,40 @@ def run_benders(params : ModelParams) -> ModelOutput:
     # Number of switches <= Max switches
     MaxSwitches = m.addConstr(gp.quicksum(X[i, j] for (i, j) in A) <= N)
 
+    # Initial cut
+    # InitialCut = {
+    #     (i, j) :
+    #     m.addConstr(Lambda[i, j] >= G.theta[j] * (G.downstream_load[i] - G.downstream_load[j]) * (1 - X[i, j]))
+    #     for i, j in A
+    # }
+
     theta_sum = sum([v for v in G.theta.values()])
     M = theta_sum * G.downstream_load[0]
+    for (i, j) in A:
+        outgoings = []
+        load_diffs = []
+        load_diff = (G.downstream_load[i] - G.downstream_load[j])
 
-    Equality = {
-        (i, j) :
-        m.addConstr(F[i, j] + FSlack[j] == G.theta[j] + gp.quicksum(F[j, k] for k in G.outgoing[j]))
-        for i, j in A
-    }
+        for k in G.outgoing[j]:
+            if (G.downstream_load[j] - G.downstream_load[k]) > 0:
+                outgoings.append(k)
+                load_diffs.append(G.downstream_load[j] - G.downstream_load[k])
+        m.addConstr(Lambda[i, j] + LambdaSlack[j] == (G.theta[j] * load_diff +
+                    gp.quicksum(Lambda[j, k] * load_diff / load_diffs[t] for t, k in enumerate(outgoings))))
+        
+        m.addConstr(LambdaSlack[j] <= M * X[i, j])
 
-    M = theta_sum
-    Slack = {
-        (i, j) :
-        m.addConstr(FSlack[j] <= M * X[i, j])
-        for i, j in A
-    }
+    # InitialCut2 =  m.addConstr(gp.quicksum(Lambda[i, j] for i, j in Lambda) >= 
+    #     gp.quicksum(G.theta[j] * (G.downstream_load[i] - G.downstream_load[j]) * (1 - X[i, j]) for i, j in A)
+    # )
 
+    # non parametric order statistic
+    # pearson rank test
     """
     Optimize + Output
     """
     _searched_subtrees = dict()
-    _ENS = dict()
+    _V_s = dict()
     def Callback(model : gp.Model, where : int):
         if where == gp.GRB.Callback.MIPSOL:
             XV = model.cbGetSolution(X)
@@ -106,6 +123,8 @@ def run_benders(params : ModelParams) -> ModelOutput:
             if verbal:
                 print('------------')
                 print('Current ENS:', G.calculate_V_s(A, XV) + Elb)
+                LambdaV = model.cbGetSolution(Lambda)
+                print('Lambda Sum', sum(LambdaV.values()))
 
             subtrees = G.get_subtrees(XV)
 
@@ -115,25 +134,23 @@ def run_benders(params : ModelParams) -> ModelOutput:
                 print()
 
             for subtree in subtrees:
-
-                if subtree not in _ENS:
-                    _ENS[subtree] = G.calculate_ENS(subtree, XV)
-                ENS = _ENS[subtree]
-
                 Savings = {}
+
+                if subtree not in _V_s:
+                    _V_s[subtree] = G.calculate_V_s(subtree, XV)
+                V_s = _V_s[subtree]
+
                 if subtree not in _searched_subtrees:
                     for i, j in subtree:
                         XV[i, j] = 1
-                        Savings[i, j] = ENS - G.calculate_ENS(subtree, XV)
+                        Savings[i, j] = V_s - G.calculate_V_s(subtree, XV)
                         XV[i, j] = 0
-                    _searched_subtrees[subtree] = Savings
+                        _searched_subtrees[subtree] = Savings
                 Savings = _searched_subtrees[subtree]
 
-                t = sum([G.downstream_load[i] - G.downstream_load[j] for i, j in subtree])
                 try:
-                    model.cbLazy(gp.quicksum(
-                        (G.downstream_load[i] - G.downstream_load[j]) * F[i, j] for i, j in subtree) >= 
-                                ENS - 
+                    model.cbLazy(gp.quicksum(Lambda[i, j] for i, j in subtree) >= 
+                                V_s - 
                                 gp.quicksum(
                                     Savings[i, j] * X[i, j] for i, j in subtree
                                 )
@@ -143,13 +160,8 @@ def run_benders(params : ModelParams) -> ModelOutput:
                     quit()
 
     m.setParam('OutputFlag', 0)
-    m.setParam('MIPGap', params.MIPGap)
+    m.setParam('MIPGap', 0)
     m.setParam('LazyConstraints', 1)
-    m.setParam('FeasibilityTol', params.FeasibilityTol)
-    m.setParam('OptimalityTol', params.OptimalityTol)
-    m.setParam('Seed', params.gurobi_seed)
-    if not presolve:
-        m.setParam('Presolve', 0)
 
     if time_limit:
         m.setParam('TimeLimit', 600)
@@ -160,13 +172,8 @@ def run_benders(params : ModelParams) -> ModelOutput:
         print('LB:', Elb)
         print('UB', Eub)
 
-    output = ModelOutput(m.ObjVal, 
-        {x : round(X[x].X) for x in X}, 
-        {x : F[x].X for x in F},
-        {x : FSlack[x].X for x in FSlack},
-        m.Runtime
-    )
-    return output
+    solution = {x : round(X[x].X) for x in X}
+    return m.ObjVal, m.Runtime, solution, {x : Lambda[x].X for x in Lambda}
 
 KNOWN_OPTIMAL_OUTPUTS = {
     (3, 0.2) : 2715.24,
@@ -183,9 +190,27 @@ KNOWN_OPTIMAL_OUTPUTS = {
 }
 
 def main():
-    params = ModelParams(5, 0.6)
-    output = run_benders(params)
-    print(output.obj, output.time)
+    # P = 0.2
+    # file_number = 6
+    # filename = f'networks/R{file_number}.switch'
+    # F = read_pos_file(filename)
+    # G = Graph(F)
+    # t1 = time.time()
+    # output = run_benders(G, P, verbal=True)[0]
+    # print('Final ENS:', output)
+    # t2 = time.time()
+
+    # from sa import run_sa
+
+
+
+    # print('Time taken:', t2 - t1)
+
+    G = load_graph_object(6)
+    run_benders(G, 0.7, verbal=True)
+    from mip import run_mip
+    run_mip(G, 0.7, verbal=False)
+    pass
 
 if __name__ == "__main__":
     main()
