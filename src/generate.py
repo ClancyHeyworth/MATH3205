@@ -2,7 +2,6 @@ from util import Graph
 import numpy as np
 from reader import Node, Edge, Info
 from tqdm import tqdm
-from random import random
 
 def generate_graph(n_nodes : int, n_substations : int, 
         theta_mean : float, theta_sigma : float, 
@@ -56,10 +55,10 @@ def generate_graph(n_nodes : int, n_substations : int,
 def generate_graph2(n_nodes : int, n_substations : int, 
         theta_mean : float, 
         theta_sigma : float, 
-        theta_proportion : float,
         load_mean : float, 
         load_sigma : float,
-        load_proportion : float,
+        substation_load_mean : float,
+        substation_load_sigma : float,
         mean_children : float, 
         branch_proportion:float) -> Graph:
     assert n_nodes >= n_substations
@@ -67,6 +66,15 @@ def generate_graph2(n_nodes : int, n_substations : int,
     np.random.seed(0)
     # Number of nodes to assign to each substation
     node_split = np.random.multinomial(n_nodes, np.ones(n_substations) / n_substations)
+
+    theta_shape = (theta_mean**2)/(theta_sigma**2)
+    theta_scale = (theta_sigma**2) / theta_mean
+
+    load_shape = (load_mean**2)/(load_sigma**2)
+    load_scale = (load_sigma**2) / load_mean
+
+    substation_load_shape = (substation_load_mean**2)/(substation_load_sigma**2)
+    substation_load_scale = (substation_load_sigma**2) / substation_load_mean
 
     nodes = []
     edges = []
@@ -76,7 +84,7 @@ def generate_graph2(n_nodes : int, n_substations : int,
         leaf_nodes : set[Node] = set()
 
         # make substation
-        substation = Node(total_placed, 0, np.random.normal(load_mean, load_sigma), -1)
+        substation = Node(total_placed, 0, np.random.gamma(substation_load_shape, substation_load_scale), -1)
         leaf_nodes.add(substation)
         nodes.append(substation)
         total_placed += 1
@@ -85,7 +93,7 @@ def generate_graph2(n_nodes : int, n_substations : int,
             current = np.random.choice(tuple(leaf_nodes))
             leaf_nodes.remove(current)
 
-            if random() < branch_proportion:
+            if np.random.random() < branch_proportion:
                 num_children = max(1, np.random.poisson(lam=mean_children))
             else:
                 num_children = 1
@@ -100,12 +108,8 @@ def generate_graph2(n_nodes : int, n_substations : int,
 
                 theta = 0
                 load = 0
-                if random() < theta_proportion:
-                    # theta = max(0, np.random.normal(theta_mean, theta_sigma))
-                    theta = np.random.exponential(theta_mean)
-                if random() < load_proportion:
-                    # load = max(0, np.random.normal(load_mean, load_sigma))
-                    load = np.random.exponential(load_mean)
+                theta = np.random.gamma(theta_shape, theta_scale)
+                load = np.random.gamma(load_shape, load_scale)
                 
                 new_node = Node(node_index, 
                     theta,
@@ -123,24 +127,23 @@ def generate_similar_graph(G : Graph, nodes_factor : int = 1) -> Graph:
     branch_proportion = np.mean([1 if len(G.outgoing[v]) > 1 else 0 for v in G.V])
     mean_children = np.mean([len(G.outgoing[j]) for j in G.V if len(G.outgoing[j]) > 1])
 
-    load_mean = np.mean([v.power for v in G.index_node.values() if v.power > 0])
-    load_sigma = np.std([v.power for v in G.index_node.values() if v.power != 0])
-    load_proportion = np.mean([1 if v.power > 0 else 0 for v in G.index_node.values()])
+    load_data = [v.power for v in G.index_node.values() if v.power > 0 and v.clients > 0]
+    load_mean = np.mean(load_data)
+    load_sigma = np.std(load_data)
     
-    theta_mean = np.mean([v.theta for v in G.index_node.values() if v.theta > 0])
-    theta_sigma = np.std([v.theta for v in G.index_node.values() if v.theta > 0])
-    theta_proportion = np.mean([1 if v.theta > 0 else 0 for v in G.index_node.values()])
+    theta_data = [v.theta for v in G.index_node.values() if v.theta > 0 and v.clients > 0]
+    theta_mean = np.mean(theta_data)
+    theta_sigma = np.std(theta_data)
+
+    substation_load_data = [v.power for v in G.index_node.values() if v.power > 0 and v.clients < 0]
+    substation_load_mean = np.mean(substation_load_data)
+    substation_load_std = np.mean(substation_load_data)
 
     n_nodes = nodes_factor * len(G.index_node) - 1
     n_substations = len(G.substations)
-    G = generate_graph2(n_nodes, n_substations, theta_mean, theta_sigma, theta_proportion, load_mean, load_sigma, load_proportion, mean_children, branch_proportion)
+    G = generate_graph2(n_nodes, n_substations, 
+                        theta_mean, theta_sigma, 
+                        load_mean, load_sigma, 
+                        substation_load_mean, substation_load_std,
+                        mean_children, branch_proportion)
     return G
-
-if __name__ == "__main__":
-    from benders import run_benders
-    from mip import run_mip
-    from params import ModelOutput, ModelParams
-
-    params = ModelParams(6, 0.6, verbal=True)
-
-    run_mip(params)

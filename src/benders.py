@@ -183,7 +183,7 @@ KNOWN_OPTIMAL_OUTPUTS = {
 }
 
 def main():
-    params = ModelParams(5, 0.6)
+    params = ModelParams(7, 0.2)
     output = run_benders(params)
     print(output.obj, output.time)
 

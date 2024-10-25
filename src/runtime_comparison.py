@@ -28,8 +28,8 @@ def output_runtimes(file_number, presolve:bool=True) -> None:
         dict_df['mip_obj'].append(mip_output.obj)
     
     print(dict_df)
-    # df = pandas.DataFrame(dict_df)
-    # df.to_csv(f'outputs/{file_number}v2.csv', index=False)
+    df = pandas.DataFrame(dict_df)
+    df.to_csv(f'outputs/{file_number}.csv', index=False)
 
 if __name__ == "__main__":
-    output_runtimes(7)
+    output_runtimes(5)
