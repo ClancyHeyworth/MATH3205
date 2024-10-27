@@ -29,7 +29,7 @@ print(f'MIP Objective: {round(mip_output.obj, ndigits = 3)}, MIP Time to Optimal
 
 """
 The validity of a solution, i.e. it did not violate any constraints, can be checked as 
-such. This is used to ensurer that the optimization functions had constraint that were
+such. This is used to ensure that the optimization functions had constraint that were
 correctly configured.
 """
 check_constraints(params, benders_output)
