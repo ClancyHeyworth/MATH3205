@@ -19,6 +19,7 @@ class ModelOutput:
     F : dict[tuple[int, int], float]
     FSlack : dict[tuple[int, int], float]
     time : float
+    gap : float = None
 
 class ModelParams:
     """
@@ -58,14 +59,32 @@ class ModelParams:
         self.MIPGap = MIPGap
         self.FeasibilityTol = FeasibilityTol
         self.OptimalityTol = OptimalityTol
-        self.make_similar_graph = make_similar_graph
         self.gurobi_seed = gurobi_seed
-        self.nodes_factor = nodes_factor
 
         if self.gurobi_seed is None:
             self.gurobi_seed = randint(0, 2000000000 - 1)
         
         self.G = load_graph_object(file_number)
 
-        if self.make_similar_graph:
+        if make_similar_graph:
             self.G = generate_similar_graph(self.G, nodes_factor)
+
+if __name__ == "__main__":
+    # G1 = ModelParams(6, 0.6).G
+    # G2 = ModelParams(6, 0.6, make_similar_graph=True, verbal=True, nodes_factor=10).G
+    # G1.plot_graph()
+    # G2.plot_graph()
+
+    # print(G1.get_ens_lower_bound(), G1.get_ens_upper_bound())
+    # print(G2.get_ens_lower_bound(), G2.get_ens_upper_bound())
+    # quit()
+    from benders import run_benders
+    from mip import run_mip
+
+    params = ModelParams(6, 0.6, make_similar_graph=True, verbal=False, nodes_factor=10)
+
+    res = run_benders(params)
+    print(res.obj, res.time)
+    params.verbal=True
+    res = run_mip(params)
+    print(res.obj, res.time)

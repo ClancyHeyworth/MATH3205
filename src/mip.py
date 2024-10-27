@@ -135,25 +135,10 @@ def run_mip(params : ModelParams) -> ModelOutput:
         print('ENS', m.ObjVal)
         print('LB:', Elb)
         print('UB', Eub)
-    return ModelOutput(m.ObjVal, {x : round(X[x].X) for x in X}, {x : F[x].X for x in F}, {x : BigF[x].X for x in BigF}, m.Runtime) 
-
-KNOWN_OPTIMAL_OUTPUTS = {
-    (3, 0.2) : 2715.24,
-    (3, 0.4) : 2269.21,
-    (3, 0.6) : 2144.88,
-    (3, 0.8) : 2089.06,
-    (4, 0.2) : 2504.72,
-    (4, 0.4) : 2361.50,
-    (4, 0.6) : 2340.32,
-    (4, 0.8) : 2340.32,
-    (5, 0.2) : 4801.43,
-    (5, 0.8) : 3747.42,
-    (6, 0.8) : 1437.63
-}
-
-def main():
-    params = ModelParams(6, 0.6, verbal=True)
-    print(run_mip(params).time)
-
-if __name__ == "__main__":
-    main()
+    
+    return ModelOutput(m.ObjVal, 
+        {x : round(X[x].X) for x in X}, 
+        {x : F[x].X for x in F}, 
+        {x : BigF[x].X for x in BigF}, 
+        m.Runtime,
+        m.MIPGap) 

@@ -1,5 +1,5 @@
 import gurobipy as gp
-from util import *
+from util import Graph
 from math import floor
 import numpy as np
 from params import ModelOutput, ModelParams

@@ -1,3 +1,1 @@
-mip.py currently producing good results
-
-all code located in src folder
+An example file to show how to run the optimisation methods can be found in src/main.py. To ensure correct file path usage, please run everything from the parent directory.

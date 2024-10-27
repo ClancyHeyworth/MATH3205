@@ -177,19 +177,6 @@ class Graph:
                 
         return self._downstream_theta[i, j]
     
-    def calculate_V_s(self, subtree : set[tuple[int, int]], 
-            XV : dict[tuple[int, int], int]) -> float:
-        """
-        Returns contribution of subtree to objective function.\\
-        subtree : set of arcs (i, j)\\
-        XV : A dictionary mapping arcs (i, j) -> {0,1}, representing switch placement.
-        """
-        self._downstream_theta = dict()
-        return sum(
-            (self.downstream_load[a[0]] - self.downstream_load[a[1]]) *\
-            self.calculate_downstream_theta(*a, XV) for a in subtree
-        )
-    
     def calculate_ENS(self, subtree : set[tuple[int, int]], 
             XV : dict[tuple[int, int], int]) -> float:
         """
@@ -203,13 +190,6 @@ class Graph:
             self.calculate_downstream_theta(*a, XV) for a in subtree
         )
     
-    def get_downstream_theta(self, subtree : set[tuple[int, int]], 
-            XV : dict[tuple[int, int], int]):
-        self._downstream_theta = dict()
-        return sum(
-            self.calculate_downstream_theta(*a, XV) for a in subtree
-        )
-
     def get_subtrees(self, XV : dict[tuple[int, int], int]) -> list[set[tuple[int, int]]]:
         """
         Returns a list of set of tuples representing arcs between switches.\\

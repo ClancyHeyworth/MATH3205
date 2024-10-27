@@ -11,6 +11,7 @@ def check_constraints(params:ModelParams, output:ModelOutput) -> bool:
     FV = output.F
     G = params.G
     N = floor(params.P * len(G.edges)) + len(G.substations)
+    violation = False
     
     # Check max switch constraint
     assert sum([XV[x] for x in XV]) <= N
@@ -25,6 +26,7 @@ def check_constraints(params:ModelParams, output:ModelOutput) -> bool:
             print(LHS, RHS)
             print(SlackV[j] + FV[i, j], G.theta[j] + sum([FV[j, k] for k in G.V if k in G.outgoing[j]]))
             print()
+            violation = True
         if SlackV[j] > G.M * XV[i, j]:
             # continue
             print('---- constraint failure ----')
@@ -33,6 +35,7 @@ def check_constraints(params:ModelParams, output:ModelOutput) -> bool:
             print('XV:', XV[i, j])
             print('Slack', SlackV[j], 'F', FV[i, j], 'RHS', G.theta[j] + sum([FV[j, k] for k in G.V if k in G.outgoing[j]]))
             print()
+            violation = True
         if i == 0:
             if XV[i, j] == 0:
                 print('---- constraint failure ----')
@@ -40,9 +43,12 @@ def check_constraints(params:ModelParams, output:ModelOutput) -> bool:
                 print('Substation Constraint')
                 print(XV[i, j])
                 print()
-    print('Check completed.')
+                violation = True
+    if violation:
+        print('Check showed violations of constraints.')
+    else:
+        print('Check showed no violations of constraints.')
             
-
 def check_solution():
     np.random.seed(0)
 

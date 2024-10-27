@@ -1,7 +1,6 @@
 import gurobipy as gp
 from util import Graph
 from math import floor
-from util import load_graph_object
 from params import ModelParams, ModelOutput
 
 def run_benders(params : ModelParams) -> ModelOutput:
@@ -44,12 +43,12 @@ def run_benders(params : ModelParams) -> ModelOutput:
         for i, j in A
     }
 
-    F = {
+    F = { # Duration of interruption on arc (i, j)
         (i, j) : m.addVar(lb = 0)
         for i, j in A
     }
 
-    FSlack = {
+    FSlack = { # Slack variable
         j : m.addVar(lb = 0)
         for j in V
     }
@@ -102,22 +101,14 @@ def run_benders(params : ModelParams) -> ModelOutput:
         if where == gp.GRB.Callback.MIPSOL:
             XV = model.cbGetSolution(X)
             XV = {x : round(XV[x]) for x in XV}
-
-            if verbal:
-                print('------------')
-                print('Current ENS:', G.calculate_V_s(A, XV) + Elb)
-
             subtrees = G.get_subtrees(XV)
 
-            if verbal:
-                print('Average subtree length:', sum(len(subtree) for subtree in subtrees) / len(subtrees))
-                print(f'X used: {sum(XV.values())}, X Available: {N}')
-                print()
+            cuts_added = 0
 
             for subtree in subtrees:
-
                 if subtree not in _ENS:
                     _ENS[subtree] = G.calculate_ENS(subtree, XV)
+                    cuts_added += 1
                 ENS = _ENS[subtree]
 
                 Savings = {}
@@ -129,7 +120,6 @@ def run_benders(params : ModelParams) -> ModelOutput:
                     _searched_subtrees[subtree] = Savings
                 Savings = _searched_subtrees[subtree]
 
-                t = sum([G.downstream_load[i] - G.downstream_load[j] for i, j in subtree])
                 try:
                     model.cbLazy(gp.quicksum(
                         (G.downstream_load[i] - G.downstream_load[j]) * F[i, j] for i, j in subtree) >= 
@@ -141,6 +131,16 @@ def run_benders(params : ModelParams) -> ModelOutput:
                 except:
                     print('Constraint adding failed. Clancys fault.')
                     quit()
+            
+            
+            if verbal:
+                print('------------')
+                print('Current ENS:', G.calculate_ENS(A, XV) + Elb)
+                print('Average subtree length:', sum(len(subtree) for subtree in subtrees) / len(subtrees))
+                print(f'X used: {sum(XV.values())}, X Available: {N}')
+                print(f'Cuts added: {cuts_added}')
+                print(f'Total cuts: {len(_searched_subtrees)}')
+                print()
 
     m.setParam('OutputFlag', 0)
     m.setParam('MIPGap', params.MIPGap)
@@ -164,28 +164,7 @@ def run_benders(params : ModelParams) -> ModelOutput:
         {x : round(X[x].X) for x in X}, 
         {x : F[x].X for x in F},
         {x : FSlack[x].X for x in FSlack},
-        m.Runtime
+        m.Runtime,
+        m.MIPGap
     )
     return output
-
-KNOWN_OPTIMAL_OUTPUTS = {
-    (3, 0.2) : 2715.24,
-    (3, 0.4) : 2269.21,
-    (3, 0.6) : 2144.88,
-    (3, 0.8) : 2089.06,
-    (4, 0.2) : 2504.72,
-    (4, 0.4) : 2361.50,
-    (4, 0.6) : 2340.32,
-    (4, 0.8) : 2340.32,
-    (5, 0.2) : 4801.43,
-    (5, 0.8) : 3747.42,
-    (6, 0.8) : 1437.63
-}
-
-def main():
-    params = ModelParams(7, 0.2)
-    output = run_benders(params)
-    print(output.obj, output.time)
-
-if __name__ == "__main__":
-    main()
